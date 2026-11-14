@@ -10,3 +10,11 @@
 *.ap_
 *.dex
 .DS_Store
+
+# Signing material must never be committed
+*.jks
+*.keystore
+*.p12
+keystore.properties
+signing.properties
+.storepass

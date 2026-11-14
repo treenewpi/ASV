@@ -4,55 +4,82 @@ ASV is a phone-first Android app for viewing ARM64 ELF / `.so` assembly, a
 linear listing, a control-flow graph, and a read-only replay of changed
 registers. Replay uses a default execution environment (the same kind of
 seeding used for indirect-branch resolution). There is no register-edit UI.
+This is meant for watching value changes while working on deobfuscation.
 
 This repository is the **application** project: Kotlin, resources, Gradle, and
 a **prebuilt** `libicode_jni.so`. It does **not** contain the analysis engine
-source, headers, CMake, or static libraries (`.a`).
+source, headers, CMake, or static libraries (`.a`). Release APKs are not
+committed; get them from a GitHub Release asset when one is published, or
+build `assembleRelease` locally.
 
-Version: **1.0.8-debug** (versionCode 9). ABI: `arm64-v8a` only.
+Version: **1.0.8** (versionCode 9). ABI: `arm64-v8a` only. The minimum
+supported OS is Android 8.0 (API 24). Device testing for this release was
+done on a Pixel 6; that is **not** a claim that an API 24 device was tested.
+
+## Screenshots
+
+These are real 1.0.8 screens (Chinese UI), not mockups.
+
+<p>
+<img src="docs/screenshots/zh-home.png" alt="Home" width="220">
+<img src="docs/screenshots/zh-listing.png" alt="Listing" width="220">
+<img src="docs/screenshots/zh-cfg.png" alt="Control-flow graph" width="220">
+<img src="docs/screenshots/zh-replay.png" alt="Replay results" width="220">
+<img src="docs/screenshots/zh-replay-details.png" alt="Replay details" width="220">
+</p>
+
+- Home: open an APK, an installed app, or a standalone ELF / `.so`, or load the built-in sample.
+- Listing: compact address / bytes / instruction rows; long-press a row to copy it.
+- Control-flow graph: local layout, pinch-zoom and pan.
+- Replay: the main view lists only registers that actually changed; **Details** on the right opens a full-screen page with each instruction in trace order (for example `x0:5→12`).
 
 ## Build
 
-Requirements:
+Requirements: JDK 17, Android SDK (compile/target SDK 35, min SDK 24), and the
+official Gradle wrapper in this repo (Gradle 8.11.1). The first build needs
+network access to Google / Maven Central.
 
-- JDK 17
-- Android SDK (compile/target SDK 35, min SDK 24)
-- Official Gradle wrapper in this repo (Gradle 8.11.1)
-- Network access for Google / Maven Central dependencies on first build
-
-You do **not** need the engine source tree, private engine-library environment variables, or CMake/NDK compilation of native code.
+You do **not** need the engine source tree, `ICODE_*` environment variables,
+or CMake/NDK compilation of native code.
 
 ```bash
 # In a local.properties file (not committed), set:
 #   sdk.dir=/path/to/Android/sdk
 
 ./gradlew :app:assembleDebug
+./gradlew :app:assembleRelease
 ```
 
-The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
-Do not commit APKs.
+Debug APK: `app/build/outputs/apk/debug/`. Release APK:
+`app/build/outputs/apk/release/`. Do not commit APKs.
+
+Release builds need a local signing config. Do not put keystore passwords in
+the repository. Set `ASV_RELEASE_SIGNING_PROPS` to an untracked properties
+file with `storeFile`, `storePassword`, `keyAlias`, and `keyPassword`, or use
+the default local signing properties path on the build machine (outside this
+repo).
 
 The native library is already under
 `app/src/main/jniLibs/arm64-v8a/libicode_jni.so` (plus `libc++_shared.so`).
 The Kotlin side loads it with `System.loadLibrary("icode_jni")`.
 
-## What is in the APK, and what is not
+## Limits and what was tested
 
-- Shipped here: ASV UI source, unit/instrumentation tests, a small built-in
-  self-made ARM64 sample under `app/src/main/assets/samples/`, and the
-  prebuilt JNI library.
-- Not shipped: engine C/C++ sources, `jni_bridge` implementation sources,
-  original CMake, private remotes, user documents, or release APKs.
-
-See `NOTICE` for license and distribution notes. The prebuilt engine library
-is **not** open-sourced by this repository. The binary was stripped of ELF
-debug symbols; that does **not** mean it cannot be reverse engineered, and
-some third-party path strings may remain inside it.
+- Replay is read-only and uses a default environment; there is no register editor.
+- The prebuilt engine library is **not** open-sourced by this repository. The
+  binary was stripped of ELF debug symbols; that does **not** mean it cannot
+  be reverse engineered, and some third-party path strings may remain. See
+  `NOTICE`.
+- The 1.0.8 UI was instrumented on a Pixel 6 (listing density, replay, and the
+  full-screen details page). Large-CFG stress and replay-cancel were **not
+  covered** (analysis finished too quickly to show a cancel control). Do not
+  treat those as passing tests.
+- The release signing key is not the same as the earlier debug key, so this
+  APK cannot be installed as an in-place update over an existing debug build.
 
 ## Instrumentation tests
 
-Tests run on a device or emulator with `am instrument` (this project is not
-set up to require a specific host machine). Some tests copy a self-made
-`libconst_twelve.so` from public Download storage on the test device
-(`Download/ASV-test` or `Download/icode-viewer-test`). They do not read
-engine source.
+Tests run on a device or emulator with `am instrument`. Some tests copy a
+self-made `libconst_twelve.so` from public Download storage on the test
+device (`Download/ASV-test` or `Download/icode-viewer-test`). They do not
+read engine source.

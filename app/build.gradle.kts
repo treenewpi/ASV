@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -13,10 +15,29 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 9
-        versionName = "1.0.8-debug"
+        versionName = "1.0.8"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
             abiFilters += "arm64-v8a"
+        }
+    }
+
+    signingConfigs {
+        val propsFile = System.getenv("ASV_RELEASE_SIGNING_PROPS")?.let { file(it) }
+            ?: file("${System.getProperty("user.home")}/.local/share/asv-release-signing/keystore.properties")
+        if (propsFile.isFile) {
+            val props = Properties().apply {
+                propsFile.inputStream().use { load(it) }
+            }
+            create("release") {
+                storeFile = file(props.getProperty("storeFile"))
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+            }
         }
     }
 
@@ -27,10 +48,13 @@ android {
         }
         getByName("release") {
             isMinifyEnabled = false
+            isDebuggable = false
+            isJniDebuggable = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 
@@ -79,4 +103,15 @@ dependencies {
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test:rules:1.6.1")
     androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+}
+
+tasks.configureEach {
+    if (name == "assembleRelease" || name == "packageRelease") {
+        doFirst {
+            val cfg = android.signingConfigs.findByName("release")
+            check(cfg != null && cfg.storeFile != null && cfg.storeFile!!.isFile) {
+                "Release signing is not configured. Set ASV_RELEASE_SIGNING_PROPS to a properties file, or create the default local signing properties (not committed)."
+            }
+        }
+    }
 }
