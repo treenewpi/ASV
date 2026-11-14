@@ -1,0 +1,2 @@
+-keep class com.icode.asmviewer.data.EngineNative { *; }
+-keepclasseswithmembernames class * { native <methods>; }

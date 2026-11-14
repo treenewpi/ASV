@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ASV</string>
+    <string name="builtin_sample_label">体验示例（内置测试样本，非用户文件）</string>
+
+    <string name="nav_functions">函数</string>
+    <string name="nav_listing">平展</string>
+    <string name="nav_cfg">控制流图</string>
+    <string name="nav_replay">重放</string>
+    <string name="cd_nav_functions">函数</string>
+    <string name="cd_nav_listing">平展</string>
+    <string name="cd_nav_cfg">控制流图</string>
+    <string name="cd_nav_replay">重放到此处</string>
+
+    <string name="action_back">返回</string>
+    <string name="action_jump">跳转</string>
+    <string name="action_jump_back">返回上一位置</string>
+    <string name="action_theme">切换深浅主题</string>
+    <string name="action_language">语言</string>
+    <string name="action_ok">确定</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_copy">复制</string>
+    <string name="action_copied">已复制</string>
+    <string name="action_expand">展开</string>
+    <string name="action_collapse">收起</string>
+    <string name="error_title">无法完成操作</string>
+
+    <string name="lang_title">语言</string>
+    <string name="lang_follow_system">跟随系统</string>
+    <string name="lang_zh">简体中文</string>
+    <string name="lang_en">English</string>
+    <string name="lang_hint">只改变本应用的语言，不会修改系统语言。</string>
+
+    <string name="home_title">ASV</string>
+    <string name="home_intro">只读查看 ARM64 原生库的汇编与控制流。打开安装包或 ELF 后选择函数，在图中点选节点即可从函数入口重放到此处。不读取应用私有数据，也不分析 DEX/Java。</string>
+    <string name="home_open_apk">打开 APK</string>
+    <string name="home_open_apk_sub">从系统文件选择器打开安装包，列出其中可分析的 ARM64 .so</string>
+    <string name="home_installed">已安装应用</string>
+    <string name="home_installed_sub">浏览本机可见应用，只读公开安装包（含拆分包），再选择原生库</string>
+    <string name="home_open_elf">打开 ELF / .so</string>
+    <string name="home_open_elf_sub">打开独立的 ELF 可执行文件或共享库</string>
+    <string name="home_browse_all">若选择器未显示 APK，按所有文件浏览</string>
+    <string name="home_sample">体验示例（内置测试样本，非用户文件）</string>
+
+    <string name="subtitle_installed">已安装应用（可见范围）</string>
+    <string name="subtitle_libraries">选择 ARM64 原生库</string>
+    <string name="installed_disclaimer">仅显示系统允许本应用看见的已安装包（优先桌面启动器可见项）。侧载构建如声明 QUERY_ALL_PACKAGES 可能看到更多，应用商店分发需单独审核该权限，不能保证列出全部。只读 sourceDir / splitSourceDirs，不读私有数据。</string>
+    <string name="installed_search">搜索名称或包名</string>
+    <string name="installed_count">可见 %1$d 个</string>
+    <string name="libs_title_default">可分析的 ARM64 原生库</string>
+    <string name="libs_from_apk">来自 APK：%1$s</string>
+    <string name="libs_disclaimer">只列出 lib/arm64-v8a 与 lib/arm64 下的 .so。拆分包会单独标明来源。不会预先解压整个安装包，选中后才提取该库。本应用不分析 DEX。</string>
+    <string name="libs_size_bytes">%1$s 字节</string>
+    <string name="libs_size_unknown">大小未知</string>
+    <string name="libs_listed_notice">已列出 %1$d 个可分析的 ARM64 .so，请选择其中一个。本应用不分析 DEX。</string>
+    <string name="libs_installed_notice">只读公开安装包路径，不读取应用私有数据。请选择一个 ARM64 .so。</string>
+    <string name="chosen_apk">所选 APK</string>
+
+    <string name="fn_search">搜索函数名或地址</string>
+    <string name="fn_count">共 %1$d 个函数（来源：符号 / 展开表 / 入口 / 启发式）</string>
+    <string name="fn_row">%1$s  size=%2$s  来源=%3$s</string>
+    <string name="source_symbol">符号</string>
+    <string name="source_unwind">展开表</string>
+    <string name="source_entry">入口</string>
+    <string name="source_heuristic">启发式</string>
+    <string name="source_executable_view">可执行段查看</string>
+    <string name="fn_meta">%1$s  %2$s  来源=%3$s  指令 %4$d</string>
+    <string name="view_region_name">查看区域 %1$s</string>
+
+    <string name="cfg_empty">尚无控制流图</string>
+    <string name="cfg_truncated">图不完整：%1$s（%2$d 块）</string>
+    <string name="cfg_truncated_default">已截断</string>
+    <string name="cfg_caption">数据来自 icode CFG DOT（块内全部指令）。布局为本地分层布局，不是 Graphviz。</string>
+    <string name="cfg_fit_all">适应全图</string>
+    <string name="cfg_center_block">当前块居中</string>
+    <string name="cfg_edge_unknown">未知</string>
+    <string name="cfg_edge_true">真</string>
+    <string name="cfg_edge_false">假</string>
+    <string name="cfg_edge_fallthrough">顺序</string>
+    <string name="cfg_edge_jump">跳转</string>
+    <string name="cfg_unknown_block">未知 %1$s</string>
+    <string name="cfg_more_insns">… 共 %1$d 条</string>
+    <string name="not_arm64">非 ARM64：%1$s</string>
+    <string name="not_arm64_open">仅支持 ARM64 ELF / .so（当前架构：%1$s）。函数列表仍可查看，但控制流图与重放不可用。</string>
+    <string name="not_arm64_cfg">当前文件不是 ARM64，无法构建控制流图。</string>
+
+    <string name="jump_title">跳转到</string>
+    <string name="jump_input_label">十六进制偏移，如 0x1610 或 1610</string>
+    <string name="jump_kind_rva">模块偏移（RVA）</string>
+    <string name="jump_kind_file">文件偏移</string>
+    <string name="jump_kind_va">虚拟地址（VA）</string>
+    <string name="jump_kind_rva_hint">默认。相对本模块加载基址的偏移，与此 ELF 的链接地址一致。</string>
+    <string name="jump_kind_file_hint">文件字节中的偏移。不会把文件偏移当作虚拟地址。</string>
+    <string name="jump_kind_va_hint">ELF 加载映像中的虚拟地址，已包含映像基址。</string>
+    <string name="jump_preview">RVA %1$s  ·  文件 %2$s  ·  VA %3$s</string>
+    <string name="jump_preview_no_file">RVA %1$s  ·  文件无映射  ·  VA %2$s</string>
+    <string name="jump_action">跳转</string>
+    <string name="jump_need_file">请先打开文件，再跳转到地址。</string>
+    <string name="jump_bad_hex">无法识别这个十六进制偏移。</string>
+    <string name="jump_out_of_file">文件偏移超出文件范围。</string>
+    <string name="jump_unmapped_file">该文件偏移没有对应的内存映射。不会把文件偏移当作虚拟地址。</string>
+    <string name="jump_unmapped_rva">该模块偏移在映像中没有对应映射。</string>
+    <string name="jump_unmapped_va">该虚拟地址在映像中没有映射。</string>
+    <string name="jump_not_code">该地址不在可执行代码段。</string>
+    <string name="jump_unaligned">ARM64 指令需要 4 字节对齐。</string>
+    <string name="jump_no_neighbor">该地址不属于已知函数，因此没有跳到邻近函数。已按可执行段打开查看区域。</string>
+    <string name="jump_no_region">该地址不属于已知函数，也无法安全创建可执行段查看区域。</string>
+
+    <string name="replay_title">从函数入口重放到此处</string>
+    <string name="replay_hint">在图或平展列表中点选节点或指令，再按「重放」。结果是执行完该指令之后的状态。结果只读。</string>
+    <string name="replay_collapsed">已收起，图可使用更大空间。</string>
+    <string name="replay_summary">已重放到 %1$s</string>
+    <string name="replay_status_ok">已从函数入口执行到所选指令（含这条指令），下面是执行之后的结果。</string>
+    <string name="replay_status_default_env">结果基于默认执行环境，不是程序在设备上真实运行的值。</string>
+    <string name="replay_default_env_title">默认环境</string>
+    <string name="replay_default_env_body">通用寄存器在没有来自这段指令的写入时按 0 参与运算。栈指针指向一块专用栈（地址 %1$s，大小 %2$s KiB）。已映射当前文件的加载段。不会改写原文件，也不会调用设备上的外部函数。</string>
+    <string name="replay_status_no_exec">没有执行任何指令。</string>
+    <string name="replay_flags">条件标志</string>
+    <string name="replay_fail_reach">未能到达所选位置。</string>
+    <string name="replay_uncertain">部分执行结果无法确定。</string>
+    <string name="replay_skipped_calls">已跳过外部调用。</string>
+    <string name="replay_multi_path">到达该位置可能有多条路径，当前只显示其中一条。</string>
+    <string name="replay_loop_once">遇到循环时只走了一遍，没有按次数重复。</string>
+    <string name="replay_need_selection">请先在图或列表中选择要重放的位置。</string>
+    <string name="replay_need_arm64">重放仅支持 ARM64。</string>
+    <string name="replay_busy">重放中…</string>
+    <string name="replay_details">详情</string>
+    <string name="replay_details_changes_only">仅变化</string>
+    <string name="replay_details_empty">无记录</string>
+    <string name="replay_regs_title">发生变化的寄存器</string>
+    <string name="replay_regs_none">没有寄存器变化</string>
+    <string name="replay_reg_unknown">未知</string>
+    <string name="replay_mem_title">内存变化</string>
+    <string name="replay_mem_none">没有内存变化</string>
+    <string name="replay_pc_summary">停止于 %1$s</string>
+
+    <string name="busy_loading_sample">正在载入体验示例…</string>
+    <string name="busy_listing_apk">正在枚举 APK 中的 ARM64 原生库…</string>
+    <string name="busy_opening_elf">正在打开 ELF / .so…</string>
+    <string name="busy_listing_installed">正在枚举公开安装包中的 ARM64 原生库…</string>
+    <string name="busy_opening_lib">正在打开 %1$s…</string>
+    <string name="busy_analyzing">正在分析 %1$s…</string>
+
+    <string name="err_generic">无法完成分析。</string>
+    <string name="err_open_failed">无法打开该文件。</string>
+    <string name="err_list_functions">无法列出函数。</string>
+    <string name="err_cfg_failed">无法构建控制流图。</string>
+    <string name="err_replay_failed">无法重放到选中位置。</string>
+    <string name="err_not_in_cfg">选中位置不在当前函数的控制流图中。</string>
+    <string name="err_read_file">无法读取所选文件。</string>
+    <string name="err_read_apk">无法读取安装包：%1$s</string>
+    <string name="err_unsafe_path">APK 中存在不安全或无效的路径。</string>
+    <string name="err_missing_entry">安装包中找不到 %1$s</string>
+    <string name="err_size_limit">%1$s 超过 96 MiB 限制。</string>
+    <string name="err_file_too_large">文件超过 %1$d MiB 限制。</string>
+    <string name="err_no_arm64_libs">该包的 lib 下没有 arm64-v8a / arm64 的 .so。%1$s %2$s</string>
+    <string name="err_no_abis">未发现 lib/&lt;abi&gt;/*.so</string>
+    <string name="err_only_abis">仅发现：%1$s</string>
+    <string name="err_dex_ignored">已忽略 DEX/Java 代码，本应用只支持 ARM64 原生库。</string>
+    <string name="err_native_only">本应用只支持 ARM64 原生库，不会把 DEX 当作可分析文件。</string>
+</resources>

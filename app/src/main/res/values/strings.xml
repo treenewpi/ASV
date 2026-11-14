@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ASV</string>
+    <string name="builtin_sample_label">Built-in sample (not a user file)</string>
+
+    <string name="nav_functions">Functions</string>
+    <string name="nav_listing">Listing</string>
+    <string name="nav_cfg">Control flow</string>
+    <string name="nav_replay">Replay</string>
+    <string name="cd_nav_functions">Functions</string>
+    <string name="cd_nav_listing">Listing</string>
+    <string name="cd_nav_cfg">Control flow graph</string>
+    <string name="cd_nav_replay">Replay to here</string>
+
+    <string name="action_back">Back</string>
+    <string name="action_jump">Jump</string>
+    <string name="action_jump_back">Go back</string>
+    <string name="action_theme">Toggle light or dark theme</string>
+    <string name="action_language">Language</string>
+    <string name="action_ok">OK</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_copied">Copied</string>
+    <string name="action_expand">Expand</string>
+    <string name="action_collapse">Collapse</string>
+    <string name="error_title">Couldn\'t complete that</string>
+
+    <string name="lang_title">Language</string>
+    <string name="lang_follow_system">Follow system</string>
+    <string name="lang_zh">简体中文</string>
+    <string name="lang_en">English</string>
+    <string name="lang_hint">This only changes the app. It doesn\'t change the system language.</string>
+
+    <string name="home_title">ASV</string>
+    <string name="home_intro">Open an APK, an installed app, or an ELF/.so to inspect ARM64 assembly and control flow. After you pick a function, tap a node to replay from the function entry to that point. This app doesn\'t read private app data and doesn\'t analyze DEX or Java.</string>
+    <string name="home_open_apk">Open APK</string>
+    <string name="home_open_apk_sub">Pick an install package and list ARM64 native libraries you can analyze</string>
+    <string name="home_installed">Installed apps</string>
+    <string name="home_installed_sub">Browse visible apps, read only public install packages (including splits), then pick a native library</string>
+    <string name="home_open_elf">Open ELF / .so</string>
+    <string name="home_open_elf_sub">Open a standalone ELF executable or shared library</string>
+    <string name="home_browse_all">If the picker hides APKs, browse all files</string>
+    <string name="home_sample">Try the sample (built-in test file, not a user file)</string>
+
+    <string name="subtitle_installed">Installed apps (visible range)</string>
+    <string name="subtitle_libraries">Choose an ARM64 native library</string>
+    <string name="installed_disclaimer">Only packages the system lets this app see are listed (launcher apps first). A sideloaded build that declares QUERY_ALL_PACKAGES may see more. Store distribution of that permission is restricted, so this is not a complete inventory. Only public sourceDir and splitSourceDirs are read; private data is not.</string>
+    <string name="installed_search">Search name or package</string>
+    <string name="installed_count">Visible: %1$d</string>
+    <string name="libs_title_default">ARM64 native libraries</string>
+    <string name="libs_from_apk">From APK: %1$s</string>
+    <string name="libs_disclaimer">Only .so files under lib/arm64-v8a and lib/arm64 are listed. Split packages are labeled by source. The whole package is not extracted up front; only the library you pick is. This app does not analyze DEX.</string>
+    <string name="libs_size_bytes">%1$s bytes</string>
+    <string name="libs_size_unknown">Size unknown</string>
+    <string name="libs_listed_notice">Listed %1$d ARM64 .so files. Choose one. This app does not analyze DEX.</string>
+    <string name="libs_installed_notice">Only public install paths are used. Private app data is not read. Choose an ARM64 .so.</string>
+    <string name="chosen_apk">Selected APK</string>
+
+    <string name="fn_search">Search function name or address</string>
+    <string name="fn_count">%1$d functions (source: symbols / unwind / entry / heuristic)</string>
+    <string name="fn_row">%1$s  size=%2$s  source=%3$s</string>
+    <string name="source_symbol">Symbol</string>
+    <string name="source_unwind">Unwind table</string>
+    <string name="source_entry">Entry</string>
+    <string name="source_heuristic">Heuristic</string>
+    <string name="source_executable_view">Executable-segment view</string>
+    <string name="fn_meta">%1$s  %2$s  source=%3$s  %4$d instructions</string>
+    <string name="view_region_name">View %1$s</string>
+
+    <string name="cfg_empty">No control-flow graph yet</string>
+    <string name="cfg_truncated">Graph is incomplete: %1$s (%2$d blocks)</string>
+    <string name="cfg_truncated_default">truncated</string>
+    <string name="cfg_caption">Block instructions come from the icode CFG DOT export. Layout is a local layered layout, not Graphviz.</string>
+    <string name="cfg_fit_all">Fit all</string>
+    <string name="cfg_center_block">Center current block</string>
+    <string name="cfg_edge_unknown">Unknown</string>
+    <string name="cfg_edge_true">True</string>
+    <string name="cfg_edge_false">False</string>
+    <string name="cfg_edge_fallthrough">Next</string>
+    <string name="cfg_edge_jump">Jump</string>
+    <string name="cfg_unknown_block">Unknown %1$s</string>
+    <string name="cfg_more_insns">… %1$d instructions total</string>
+    <string name="not_arm64">Not ARM64: %1$s</string>
+    <string name="not_arm64_open">Only ARM64 ELF / .so files can be analyzed (this file is %1$s). You can still browse the function list, but the graph and replay are unavailable.</string>
+    <string name="not_arm64_cfg">This file is not ARM64, so a control-flow graph can\'t be built.</string>
+
+    <string name="jump_title">Jump to</string>
+    <string name="jump_input_label">Hexadecimal offset, such as 0x1610 or 1610</string>
+    <string name="jump_kind_rva">Module offset (RVA)</string>
+    <string name="jump_kind_file">File offset</string>
+    <string name="jump_kind_va">Virtual address (VA)</string>
+    <string name="jump_kind_rva_hint">Default. Offset from the module load base, as linked in this ELF.</string>
+    <string name="jump_kind_file_hint">Offset in the file bytes. This is not a virtual address.</string>
+    <string name="jump_kind_va_hint">Virtual address in the ELF load image, including the image base.</string>
+    <string name="jump_preview">RVA %1$s  ·  file %2$s  ·  VA %3$s</string>
+    <string name="jump_preview_no_file">RVA %1$s  ·  file unmapped  ·  VA %2$s</string>
+    <string name="jump_action">Jump</string>
+    <string name="jump_need_file">Open a file before jumping to an address.</string>
+    <string name="jump_bad_hex">That isn\'t a valid hexadecimal offset.</string>
+    <string name="jump_out_of_file">That file offset is outside the file.</string>
+    <string name="jump_unmapped_file">That file offset has no memory mapping. A file offset is not treated as a virtual address.</string>
+    <string name="jump_unmapped_rva">That module offset has no mapping in this image.</string>
+    <string name="jump_unmapped_va">That virtual address is not mapped in this image.</string>
+    <string name="jump_not_code">That address is not in an executable code segment.</string>
+    <string name="jump_unaligned">ARM64 instructions must be 4-byte aligned.</string>
+    <string name="jump_no_neighbor">That address isn\'t inside a known function, so it wasn\'t snapped to a nearby one. A view of the executable segment is open instead.</string>
+    <string name="jump_no_region">That address isn\'t inside a known function, and a safe executable view couldn\'t be created.</string>
+
+    <string name="replay_title">Replay from the function entry to here</string>
+    <string name="replay_hint">Select a node or instruction in the graph or listing, then tap Replay. The result is the state after that instruction. Results are read-only.</string>
+    <string name="replay_collapsed">Collapsed so the graph can use more space.</string>
+    <string name="replay_summary">Replayed to %1$s</string>
+    <string name="replay_status_ok">Ran from the function entry through the selected instruction. This is the state after that instruction.</string>
+    <string name="replay_status_default_env">Results are based on a default execution environment, not values from a real run on the device.</string>
+    <string name="replay_default_env_title">Default environment</string>
+    <string name="replay_default_env_body">General-purpose registers participate as 0 unless this path writes them. The stack pointer refers to a private stack (address %1$s, size %2$s KiB). The file\'s load segments are mapped. The original file is not written, and no real external functions are called.</string>
+    <string name="replay_status_no_exec">No instruction was executed.</string>
+    <string name="replay_flags">Condition flags</string>
+    <string name="replay_fail_reach">Couldn\'t reach the selected location.</string>
+    <string name="replay_uncertain">Some of the result couldn\'t be determined.</string>
+    <string name="replay_skipped_calls">External calls were skipped.</string>
+    <string name="replay_multi_path">There may be more than one path to this location. This result is for one of them.</string>
+    <string name="replay_loop_once">A loop was encountered; the body was taken once, not repeated by trip count.</string>
+    <string name="replay_need_selection">Select a location in the graph or listing first, then replay to it.</string>
+    <string name="replay_need_arm64">Replay is available for ARM64 only.</string>
+    <string name="replay_busy">Replaying…</string>
+    <string name="replay_details">Details</string>
+    <string name="replay_details_changes_only">Changes only</string>
+    <string name="replay_details_empty">No records</string>
+    <string name="replay_regs_title">Registers that changed</string>
+    <string name="replay_regs_none">No register changes</string>
+    <string name="replay_reg_unknown">unknown</string>
+    <string name="replay_mem_title">Memory changes</string>
+    <string name="replay_mem_none">No memory changes</string>
+    <string name="replay_pc_summary">Stopped at %1$s</string>
+
+    <string name="busy_loading_sample">Loading the sample…</string>
+    <string name="busy_listing_apk">Listing ARM64 native libraries in the APK…</string>
+    <string name="busy_opening_elf">Opening ELF / .so…</string>
+    <string name="busy_listing_installed">Listing ARM64 native libraries in the public install package…</string>
+    <string name="busy_opening_lib">Opening %1$s…</string>
+    <string name="busy_analyzing">Analyzing %1$s…</string>
+
+    <string name="err_generic">Something went wrong, and the file couldn\'t be analyzed.</string>
+    <string name="err_open_failed">Couldn\'t open that file.</string>
+    <string name="err_list_functions">Couldn\'t list functions in that file.</string>
+    <string name="err_cfg_failed">Couldn\'t build the control-flow graph.</string>
+    <string name="err_replay_failed">Couldn\'t replay to the selected location.</string>
+    <string name="err_not_in_cfg">The selected location isn\'t in this function\'s control-flow graph.</string>
+    <string name="err_read_file">Couldn\'t read the selected file.</string>
+    <string name="err_read_apk">Couldn\'t read the install package: %1$s</string>
+    <string name="err_unsafe_path">The APK contains an unsafe or invalid path.</string>
+    <string name="err_missing_entry">Couldn\'t find %1$s in the install package.</string>
+    <string name="err_size_limit">%1$s exceeds the 96 MiB limit.</string>
+    <string name="err_file_too_large">The file exceeds the %1$d MiB limit.</string>
+    <string name="err_no_arm64_libs">This package has no arm64-v8a or arm64 .so under lib/. %1$s %2$s</string>
+    <string name="err_no_abis">No lib/&lt;abi&gt;/*.so entries were found.</string>
+    <string name="err_only_abis">Found only: %1$s</string>
+    <string name="err_dex_ignored">DEX/Java code was ignored. This app only supports ARM64 native libraries.</string>
+    <string name="err_native_only">This app only supports ARM64 native libraries and will not treat DEX as an analyzable file.</string>
+</resources>

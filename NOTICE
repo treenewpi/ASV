@@ -1,0 +1,58 @@
+ASV (ARM64 assembly viewer)
+===========================
+
+This repository contains the ASV Android application source (Kotlin, resources,
+Gradle) and a prebuilt native library used at runtime.
+
+Application source
+------------------
+The Kotlin/UI/Gradle files in this repository are the ASV application. They do
+not include the analysis engine's C/C++ source, headers, CMake, or static
+libraries. Copyright in the application source remains with the ASV authors.
+This file does not grant a license to the engine.
+
+Prebuilt native library (not open source)
+-----------------------------------------
+app/src/main/jniLibs/arm64-v8a/libicode_jni.so is a precompiled shared library
+that provides the analysis and replay implementation through a JNI interface
+(load name: icode_jni). It is distributed only as a binary. This repository
+does not publish engine source, and it does not grant an open-source license
+for that library or for the engine inside it. Do not treat libicode_jni.so as
+being licensed under an MIT, Apache, GPL, or other open-source grant from this
+project.
+
+The ELF debug symbol table of the shipped .so was stripped. That does not make
+the binary irreversible or free of all build metadata. In particular, some
+third-party code statically compiled into the library (notably Z3) still
+contains source-path string literals from the machine that built those
+dependencies. Those strings are not complete debug symbols, but they are not
+fully removed.
+
+libc++_shared.so
+----------------
+app/src/main/jniLibs/arm64-v8a/libc++_shared.so is the LLVM libc++ shared
+runtime used by the Android NDK. It is subject to the LLVM license and the
+NCSA/MIT-style terms that accompany libc++ (see the LLVM project and the
+Android NDK notices).
+
+Third-party code that may be statically present inside libicode_jni.so
+---------------------------------------------------------------------
+The prebuilt engine library is believed to statically incorporate, among other
+components, publicly known projects such as:
+
+  - Capstone disassembly engine (BSD license; upstream: capstone-engine)
+  - Triton binary analysis framework (Apache-2.0; upstream: Jonathan Salwan /
+    quarkslab)
+  - Z3 theorem prover (MIT license; upstream: Microsoft Research)
+  - Keystone assembler (GPL-2.0; upstream: keystone-engine)
+
+Presence of these projects in the binary was inferred from exported or
+internal symbols and strings, not from publishing their sources here.
+Redistribution of those components remains subject to their original licenses.
+This notice is informational. It does not relicense those projects, and it
+does not claim that the ASV authors can offer Keystone (GPL-2.0) or any other
+component under a different license. Recipients who need to verify license
+compliance for a public distribution should review the corresponding upstream
+terms themselves.
+
+No rights in the proprietary engine are waived.
