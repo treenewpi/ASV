@@ -124,7 +124,7 @@ class EngineSimAndCfgTest {
         try {
             val json = engine.replayTo(h, 0x15a4, 0x15ac, 8_000)
             assertTrue(json.contains("icode.replay.v1"))
-            assertTrue(json.contains("dominator_path") || json.contains("reachable_fallback"))
+            assertTrue(json.contains("concrete") || json.contains("not_reached") || json.contains("dominator_path") || json.contains("reachable_fallback"))
             assertTrue(json.contains("\"ok\":true") || json.contains("\"ok\": false") || json.contains("\"ok\":false"))
             // Must not require or mention user register initialization in the report semantics.
             assertTrue(!json.contains("set_reg") && !json.contains("userInit"))

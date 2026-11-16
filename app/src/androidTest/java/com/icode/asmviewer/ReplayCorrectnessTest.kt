@@ -79,7 +79,7 @@ class ReplayCorrectnessTest {
     }
 
     @Test
-    fun condAbsNegRetWithDefaultZeroDoesNotReportX0AsAChange() {
+    fun condAbsNegPathIsNotForceExecutedWithDefaultZero() {
         val handle = engine.open(ApkImporter.installBuiltinSample(ctx).absolutePath)
         try {
             val (_, fns) = parseFunctionList(engine.listFunctions(handle))
@@ -88,15 +88,15 @@ class ReplayCorrectnessTest {
             val retAfterNeg = 0x15b0L
             val json = engine.replayTo(handle, cond.start, retAfterNeg, 15_000)
             val report = parseReplayReport(json)
-            assertTrue(report.ok)
-            assertTrue("must have executed through NEG and the selected RET, steps=${report.steps.map { it.mnemonic }}", report.steps.any { it.mnemonic.equals("NEG", true) })
-            assertTrue(report.steps.any { it.pc == retAfterNeg })
-            val changed = report.changedRegisters()
-            val x0 = changed.firstOrNull { it.name.equals("x0", true) || it.name.equals("w0", true) }
-            // Default seed is x0=0, same as BR solving; NEG 0,0 leaves x0=0, so no change.
-            assertTrue("x0 0→0 must not be reported as a change, x0=$x0 changed=$changed json=$json", x0 == null)
-            val flags = changed.filter { it.name.lowercase() in flagNames() }
-            assertTrue("flags along the forced NEG path must be known, flags=$flags json=$json", flags.isNotEmpty() && flags.all { it.known })
+            assertFalse("default x0=0 takes B.GE, so NEG-path RET must not be reported as reached. json=$json", report.ok)
+            assertEquals("not_reached", report.kind)
+            assertTrue("actual taken-path steps must still be present, steps=${report.steps.map { it.mnemonic }} json=$json", report.steps.isNotEmpty())
+            assertTrue("must not force-execute NEG, steps=${report.steps.map { it.mnemonic }} json=$json",
+                report.steps.none { it.mnemonic.equals("NEG", true) })
+            assertTrue("must execute the taken RET, steps=${report.steps.map { it.pc to it.mnemonic }} json=$json",
+                report.steps.any { it.mnemonic.equals("RET", true) && it.pc != retAfterNeg })
+            assertFalse("selected NEG-path RET must not appear as executed, json=$json",
+                report.steps.any { it.pc == retAfterNeg })
         } finally {
             engine.close(handle)
         }
@@ -149,13 +149,12 @@ class ReplayCorrectnessTest {
             compose.waitForIdle()
             Thread.sleep(50)
         }
-        val retAfterNeg = vm.snapshot!!.instructionsInOrder
-            .first { it.mnemonic.equals("NEG", true) }
-            .let { neg -> vm.snapshot!!.instructionsInOrder.first { it.address == neg.address + 4 && it.mnemonic.equals("RET", true) } }
+        val takenRet = vm.snapshot!!.instructionsInOrder
+            .last { it.mnemonic.equals("RET", true) }
             .address
-        compose.runOnUiThread { vm.navigateToAddress(retAfterNeg, recordHistory = true) }
+        compose.runOnUiThread { vm.navigateToAddress(takenRet, recordHistory = true) }
         compose.waitForIdle()
-        assertEquals("navigate to NEG-path RET 0x${retAfterNeg.toString(16)}, snap=${vm.snapshot!!.instructionsInOrder.map { it.address to it.mnemonic }}", retAfterNeg, vm.selectedAddress)
+        assertEquals("navigate to taken RET 0x${takenRet.toString(16)}, snap=${vm.snapshot!!.instructionsInOrder.map { it.address to it.mnemonic }}", takenRet, vm.selectedAddress)
         compose.runOnUiThread { vm.replayToSelected() }
         val t2 = System.currentTimeMillis()
         while (vm.replayReport == null && System.currentTimeMillis() - t2 < 20_000) {
@@ -163,13 +162,14 @@ class ReplayCorrectnessTest {
             Thread.sleep(50)
         }
         val first = vm.replayReport
-        assertTrue(first != null && first.ok)
+        assertTrue("UI replay of the taken path must succeed, report=$first", first != null && first.ok)
+        assertTrue(first!!.steps.none { it.mnemonic.equals("NEG", true) })
         compose.runOnUiThread { vm.updateViewMode(com.icode.asmviewer.data.ViewMode.Flat) }
         compose.waitForIdle()
-        assertEquals("mode switch must not move the selected address", retAfterNeg, vm.selectedAddress)
+        assertEquals("mode switch must not move the selected address", takenRet, vm.selectedAddress)
         compose.runOnUiThread { vm.updateViewMode(com.icode.asmviewer.data.ViewMode.Cfg) }
         compose.waitForIdle()
-        assertEquals(retAfterNeg, vm.selectedAddress)
+        assertEquals(takenRet, vm.selectedAddress)
         compose.runOnUiThread { vm.replayToSelected() }
         val t3 = System.currentTimeMillis()
         while ((vm.replayReport === first || vm.replayReport == null) && System.currentTimeMillis() - t3 < 20_000) {
@@ -222,23 +222,33 @@ class ReplayCorrectnessTest {
             val snap = parseCfgSnapshot(cfgJson)
             val brInsns = snap.instructionsInOrder.filter { it.mnemonic.equals("BR", true) }
             assertTrue("indirect_br must contain BR sites, cfg=$cfgJson", brInsns.size >= 2)
+            var reached = 0
             for (br in brInsns) {
                 val target = br.branchTarget
                 assertNotNull("CFG must resolve BR at ${br.address}, insn=$br cfg=$cfgJson", target)
                 val json = engine.replayTo(handle, fn.start, br.address, 15_000)
                 val report = parseReplayReport(json)
-                assertTrue("replay BR ${br.address} json=$json", report.ok)
-                assertTrue(report.steps.any { it.pc == br.address && it.mnemonic.equals("BR", true) })
-                val x16 = report.observedRegisters.firstOrNull { it.name.equals("x16", true) }
-                    ?: report.changedRegisters().firstOrNull { it.name.equals("x16", true) }
-                assertNotNull("x16 must be observed after replay to BR ${br.address}, json=$json", x16)
-                assertTrue("x16 must be known like BR solving, x16=$x16 json=$json", x16!!.known)
-                assertEquals(
-                    "UI replay x16 must match the CFG/BR-solver target at ${br.address}, x16=$x16 json=$json",
-                    target,
-                    x16.value,
-                )
+                if (report.ok) {
+                    reached += 1
+                    assertTrue(report.steps.any { it.pc == br.address && it.mnemonic.equals("BR", true) })
+                    val x16 = report.observedRegisters.firstOrNull { it.name.equals("x16", true) }
+                        ?: report.changedRegisters().firstOrNull { it.name.equals("x16", true) }
+                    assertNotNull("x16 must be observed after replay to BR ${br.address}, json=$json", x16)
+                    assertTrue("x16 must be known like BR solving, x16=$x16 json=$json", x16!!.known)
+                    assertEquals(
+                        "UI replay x16 must match the CFG/BR-solver target at ${br.address}, x16=$x16 json=$json",
+                        target,
+                        x16.value,
+                    )
+                } else {
+                    assertEquals("not_reached", report.kind)
+                    assertTrue("untaken BR must not be force-executed, json=$json",
+                        report.steps.none { it.pc == br.address })
+                    assertTrue("the taken BR must still appear, json=$json",
+                        report.steps.any { it.mnemonic.equals("BR", true) })
+                }
             }
+            assertEquals("default w1=0 should take exactly one BR arm, cfg=$cfgJson", 1, reached)
         } finally {
             engine.close(handle)
         }
@@ -254,18 +264,31 @@ class ReplayCorrectnessTest {
             val snap = parseCfgSnapshot(cfgJson)
             val blrInsns = snap.instructionsInOrder.filter { it.mnemonic.equals("BLR", true) }
             assertTrue("indirect_blr must contain BLR sites, cfg=$cfgJson", blrInsns.isNotEmpty())
+            var reached = 0
             for (blr in blrInsns) {
                 val target = blr.branchTarget
                 assertNotNull("CFG must resolve BLR at ${blr.address}, cfg=$cfgJson", target)
                 val json = engine.replayTo(handle, fn.start, blr.address, 15_000)
                 val report = parseReplayReport(json)
-                assertTrue("replay BLR ${blr.address} json=$json", report.ok)
-                val x16 = report.observedRegisters.firstOrNull { it.name.equals("x16", true) }
-                    ?: report.changedRegisters().firstOrNull { it.name.equals("x16", true) }
-                assertNotNull("x16 missing, json=$json", x16)
-                assertTrue(x16!!.known)
-                assertEquals("BLR x16 must match CFG target at ${blr.address}, x16=$x16 json=$json", target, x16.value)
+                if (report.ok) {
+                    reached += 1
+                    assertTrue(report.steps.any { it.pc == blr.address && it.mnemonic.equals("BLR", true) })
+                    val x16 = report.observedRegisters.firstOrNull { it.name.equals("x16", true) }
+                        ?: report.changedRegisters().firstOrNull { it.name.equals("x16", true) }
+                    assertNotNull("x16 missing, json=$json", x16)
+                    assertTrue(x16!!.known)
+                    assertEquals("BLR x16 must match CFG target at ${blr.address}, x16=$x16 json=$json", target, x16.value)
+                } else {
+                    assertEquals("not_reached", report.kind)
+                    assertTrue("untaken BLR must not be force-executed, json=$json",
+                        report.steps.none { it.pc == blr.address })
+                    assertTrue("the taken BLR must still appear, json=$json",
+                        report.steps.any { it.mnemonic.equals("BLR", true) })
+                    assertTrue("must stop instead of spinning on RET after BLR clobbers LR, steps=${report.steps.size}",
+                        report.steps.size < 256)
+                }
             }
+            assertEquals("default w1=0 should take exactly one BLR arm, cfg=$cfgJson", 1, reached)
         } finally {
             engine.close(handle)
         }
@@ -282,28 +305,30 @@ class ReplayCorrectnessTest {
             val ret = snap.instructionsInOrder.last { it.mnemonic.equals("RET", true) }
             val json = engine.replayTo(handle, fn.start, ret.address, 15_000)
             val report = parseReplayReport(json)
-            assertTrue("json=$json", report.ok)
+            // indirect_blr uses BLR without saving x30, so its trailing RET
+            // returns to itself. Real execution therefore never reaches
+            // sample_entry's LDP/RET or the later *2; do not invent that path.
+            assertFalse("sample_entry RET is not reached after BLR clobbers LR, json=$json", report.ok)
+            assertEquals("not_reached", report.kind)
+            assertTrue("must stop instead of spinning, steps=${report.steps.size} json=$json", report.steps.size < 256)
             assertTrue("must execute STP, steps=${report.steps.map { it.mnemonic }} json=$json",
                 report.steps.any { it.mnemonic.uppercase().startsWith("STP") })
-            assertTrue("must execute LDP, steps=${report.steps.map { it.mnemonic }} json=$json",
+            assertTrue("mapped BL must be executed, not skipped, steps=${report.steps.map { it.mnemonic to it.skipped }} json=$json",
+                report.steps.any { it.mnemonic.equals("BL", true) && !it.skipped })
+            assertTrue("must enter linear_add, steps=${report.steps.map { it.mnemonic }} json=$json",
+                report.steps.any { it.mnemonic.equals("ADD", true) })
+            assertFalse("must not invent the function epilogue, json=$json",
                 report.steps.any { it.mnemonic.uppercase().startsWith("LDP") })
-            // Existing replay JSON only records SET_CONCRETE_MEMORY_VALUE diffs; STP/LDP
-            // pair-writes were empty in this run. Do not invent a new memory tracer.
-            // Proof of the shared private stack is the SP/x29 traffic itself:
-            // STP [sp,#-0x10]! lowers SP from envSp to envSp-16; MOV x29,sp takes that
-            // frame; LDP [sp],#0x10 restores SP to envSp.
+            val x0 = report.changedRegisters().firstOrNull { it.name.equals("x0", true) || it.name.equals("w0", true) }
+            assertTrue("following linear_add/cond_abs/plus10 must change x0, x0=$x0 json=$json", x0 != null && x0.known)
+            assertEquals("0+3, abs, +10 => 13 (stuck before *2), x0=$x0 json=$json", 13L, x0!!.value)
             val sp0 = report.defaultEnv!!.sp
             val stp = report.steps.first { it.mnemonic.uppercase().startsWith("STP") }
-            val ldp = report.steps.first { it.mnemonic.uppercase().startsWith("LDP") }
             val stpSp = stp.registerWrites.first { it.name.equals("sp", true) }
-            val ldpSp = ldp.registerWrites.first { it.name.equals("sp", true) }
             assertTrue("STP must lower the seeded SP, stp=$stp json=$json", stpSp.known && stpSp.before == sp0 && stpSp.value == sp0 - 16L)
             val x29mov = report.steps.first { it.mnemonic.equals("MOV", true) && it.operands.contains("x29") }
             val x29 = x29mov.registerWrites.first { it.name.equals("x29", true) }
             assertEquals("x29 must become the private frame, json=$json", sp0 - 16L, x29.value)
-            assertTrue("LDP must restore SP to the seeded value, ldp=$ldp json=$json", ldpSp.known && ldpSp.value == sp0)
-            val x30 = report.changedRegisters().firstOrNull { it.name.equals("x30", true) }
-            assertTrue("x30 saved and restored to 0 should not remain a net change, x30=$x30 json=$json", x30 == null)
         } finally {
             engine.close(handle)
         }

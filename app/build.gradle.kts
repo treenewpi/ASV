@@ -14,8 +14,8 @@ android {
         applicationId = "com.icode.asmviewer"
         minSdk = 24
         targetSdk = 35
-        versionCode = 9
-        versionName = "1.0.8"
+        versionCode = 10
+        versionName = "1.0.9"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
             abiFilters += "arm64-v8a"
