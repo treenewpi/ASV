@@ -51,6 +51,12 @@ class EngineNative {
             ?: throw EngineException(err.toString().ifBlank { "路径重放失败" })
     }
 
+    fun disasmWindow(handle: Long, origin: Long, backward: Boolean, maxItems: Long): String {
+        val err = StringBuilder()
+        return nativeDisasmWindow(handle, origin, backward, maxItems, err)
+            ?: throw EngineException(err.toString().ifBlank { "无法反汇编该窗口" })
+    }
+
     fun simCreate(handle: Long, startPc: Long): Long {
         val err = StringBuilder()
         val sim = nativeSimCreate(handle, startPc, err)
@@ -118,6 +124,13 @@ class EngineNative {
         functionStart: Long,
         cursorAddress: Long,
         timeoutMs: Long,
+        errorOut: StringBuilder,
+    ): String?
+    private external fun nativeDisasmWindow(
+        handle: Long,
+        origin: Long,
+        backward: Boolean,
+        maxItems: Long,
         errorOut: StringBuilder,
     ): String?
     private external fun nativeCancel(handle: Long)

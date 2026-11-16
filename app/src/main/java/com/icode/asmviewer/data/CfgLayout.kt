@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.max
 
 data class LaidOutBlock(
@@ -52,10 +53,12 @@ data class CfgLayoutMetrics(
             // Representative widest line we intend to show inside a node.
             val measured = measurer.measure("0xFFFF  WWWW  ww, ww, #0xFFFF", style)
             val glyphH = measured.size.height.toFloat()
-            // Line box must be at least the glyph height so drawText is not clipped.
-            val lineH = glyphH + 2.dp.toPx()
-            val headerH = glyphH + 4.dp.toPx()
-            val pad = 8.dp.toPx()
+            // Line boxes are integer pixels (drawText constraints are Int).
+            // Ceil the measured glyph height so a rounded-down box cannot drop
+            // the last instruction line. Do not invent extra empty rows.
+            val lineH = ceil(glyphH).toFloat()
+            val headerH = lineH
+            val pad = ceil(8.dp.toPx().toDouble()).toFloat()
             val width = max(measured.size.width.toFloat() + pad * 2f, 200.dp.toPx())
             CfgLayoutMetrics(
                 blockWidth = width,
@@ -196,3 +199,7 @@ private fun Rect.inflate(delta: Float) =
 
 private fun Rect.translate(dx: Float, dy: Float) =
     Rect(left + dx, top + dy, right + dx, bottom + dy)
+
+
+/** Visible CFG node title: start address only. Hit testing still uses [start, end). */
+fun formatCfgNodeHeader(start: Long): String = formatAddr(start)

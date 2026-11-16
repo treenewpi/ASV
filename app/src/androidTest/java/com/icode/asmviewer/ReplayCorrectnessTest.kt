@@ -14,6 +14,8 @@ import com.icode.asmviewer.data.changedRegisters
 import com.icode.asmviewer.data.parseFunctionList
 import com.icode.asmviewer.data.parseCfgSnapshot
 import com.icode.asmviewer.data.parseReplayReport
+import com.icode.asmviewer.ui.formatReplayTransition
+import com.icode.asmviewer.ui.formatReplayInitial
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -79,7 +81,7 @@ class ReplayCorrectnessTest {
     }
 
     @Test
-    fun condAbsNegPathIsNotForceExecutedWithDefaultZero() {
+    fun condAbsNegPathIsReachedWithAutomaticallySolvedNegativeInput() {
         val handle = engine.open(ApkImporter.installBuiltinSample(ctx).absolutePath)
         try {
             val (_, fns) = parseFunctionList(engine.listFunctions(handle))
@@ -88,15 +90,39 @@ class ReplayCorrectnessTest {
             val retAfterNeg = 0x15b0L
             val json = engine.replayTo(handle, cond.start, retAfterNeg, 15_000)
             val report = parseReplayReport(json)
-            assertFalse("default x0=0 takes B.GE, so NEG-path RET must not be reported as reached. json=$json", report.ok)
-            assertEquals("not_reached", report.kind)
-            assertTrue("actual taken-path steps must still be present, steps=${report.steps.map { it.mnemonic }} json=$json", report.steps.isNotEmpty())
-            assertTrue("must not force-execute NEG, steps=${report.steps.map { it.mnemonic }} json=$json",
-                report.steps.none { it.mnemonic.equals("NEG", true) })
-            assertTrue("must execute the taken RET, steps=${report.steps.map { it.pc to it.mnemonic }} json=$json",
-                report.steps.any { it.mnemonic.equals("RET", true) && it.pc != retAfterNeg })
-            assertFalse("selected NEG-path RET must not appear as executed, json=$json",
-                report.steps.any { it.pc == retAfterNeg })
+            assertTrue("NEG-path RET must be reached by an automatically solved starting state, json=$json", report.ok)
+            assertEquals("kind=$json", "concrete_solved", report.kind)
+            assertTrue("must execute NEG, steps=${report.steps.map { it.pc to it.mnemonic }} json=$json",
+                report.steps.any { it.mnemonic.equals("NEG", true) })
+            assertTrue("must include the selected RET, json=$json",
+                report.steps.any { it.pc == retAfterNeg && it.mnemonic.equals("RET", true) })
+            assertTrue("must not append a dummy 0 exception after RET, steps=${report.steps.map { it.pc to it.mnemonic }} json=$json",
+                report.steps.none { it.pc == 0L || it.mnemonic.equals("exception", true) })
+            for (step in report.steps) {
+                val names = step.registerWrites.map { it.name.lowercase() }
+                assertEquals("flag/register rows must not be duplicated in ${step.mnemonic} $names json=$json", names.distinct(), names)
+            }
+            val initials = report.initialAssignments
+            assertTrue("path-specific starting registers must be listed, json=$json", initials.isNotEmpty())
+            val x0init = initials.firstOrNull { it.name.equals("x0", true) || it.name.equals("w0", true) }
+            assertNotNull("starting x0/w0 must be present, initials=$initials json=$json", x0init)
+            val w0 = (x0init!!.value.toULong() and 0xffffffffuL).toInt()
+            assertTrue("starting w0 must be negative to take the NEG path, init=${formatReplayInitial(x0init.name, x0init.value, true, "?")} json=$json", w0 < 0)
+            assertTrue(report.defaultEnv?.used != true)
+            val unknown = "unknown"
+            val shown = formatReplayInitial(x0init.name, x0init.value, true, unknown)
+            assertTrue("initial value must be hex, shown=$shown", shown.contains("0x"))
+            assertFalse("must not leak a leading decimal minus, shown=$shown", shown.contains(":-") || shown.contains(":-1"))
+            val neg = report.steps.first { it.mnemonic.equals("NEG", true) }
+            val w0write = neg.registerWrites.first { it.name.equals("x0", true) || it.name.equals("w0", true) }
+            val beforeW = (w0write.before ?: x0init.value).toULong() and 0xffffffffuL
+            val afterW = w0write.value.toULong() and 0xffffffffuL
+            val expectedAbs = ((-beforeW.toInt()).toUInt().toULong()) and 0xffffffffuL
+            assertEquals("NEG must write the absolute value, before=$beforeW after=$afterW json=$json", expectedAbs, afterW)
+            assertTrue(afterW > 0uL)
+            val change = formatReplayTransition(w0write.name, w0write.beforeKnown, w0write.before, w0write.known, w0write.value, unknown, w0write.sizeBytes)
+            assertTrue("details change must be hex, change=$change", change.contains("0x") && "→" in change)
+            assertTrue("change must not use decimal before/after, change=$change", !change.contains(":5→") && change.contains("0x"))
         } finally {
             engine.close(handle)
         }
@@ -207,6 +233,22 @@ class ReplayCorrectnessTest {
             assertNotNull("Z after CMP 0, flags=${changed} json=$json", z)
             assertTrue(z!!.known)
             assertEquals(1L, z.value)
+            assertTrue(report.kind == "concrete" || report.kind == "concrete_solved")
+            if (report.kind == "concrete") {
+                assertTrue(report.initialAssignments.isEmpty())
+            }
+            assertTrue("must not append a dummy 0 exception, steps=${report.steps.map { it.pc to it.mnemonic }} json=$json",
+                report.steps.none { it.pc == 0L || it.mnemonic.equals("exception", true) })
+            for (step in report.steps) {
+                val names = step.registerWrites.map { it.name.lowercase() }
+                assertEquals("duplicate flag/register rows in ${step.mnemonic}: $names json=$json", names.distinct(), names)
+            }
+            val zChange = report.steps.flatMap { step ->
+                step.registerWrites.filter { it.name.equals("z", true) }.map { w ->
+                    formatReplayTransition(w.name, w.beforeKnown, w.before, w.known, w.value, "unknown", w.sizeBytes)
+                }
+            }
+            assertTrue("flag changes must be hex, $zChange", zChange.any { it == "z:0x0→0x1" || it.startsWith("z:0x") })
         } finally {
             engine.close(handle)
         }
@@ -349,6 +391,48 @@ class ReplayCorrectnessTest {
             assertEquals(a.steps.map { it.pc to it.mnemonic }, b.steps.map { it.pc to it.mnemonic })
             assertEquals(a.changedRegisters().map { Triple(it.name, it.known, it.value) },
                 b.changedRegisters().map { Triple(it.name, it.known, it.value) })
+        } finally {
+            engine.close(handle)
+        }
+    }
+
+
+    @Test
+    fun misalignedCursorIsNotForcedAndDoesNotInventException() {
+        val handle = engine.open(ApkImporter.installBuiltinSample(ctx).absolutePath)
+        try {
+            val (_, fns) = parseFunctionList(engine.listFunctions(handle))
+            val cond = fns.first { it.name == "cond_abs" }
+            engine.buildCfg(handle, cond.start, 4096, 15_000)
+            val json = engine.replayTo(handle, cond.start, cond.start + 1, 5_000)
+            val report = parseReplayReport(json)
+            assertFalse("an instruction-sized PC never equals a mid-instruction address, json=$json", report.ok)
+            assertTrue(
+                "must distinguish a failed reach honestly, kind=${report.kind} json=$json",
+                report.kind in setOf("infeasible", "not_reached", "timeout", "unsupported"),
+            )
+            assertTrue("must not append a dummy 0 exception, steps=${report.steps.map { it.pc to it.mnemonic }} json=$json",
+                report.steps.none { it.pc == 0L || it.mnemonic.equals("exception", true) })
+        } finally {
+            engine.close(handle)
+        }
+    }
+
+    @Test
+    fun replayShortTimeoutDoesNotRunAway() {
+        val handle = engine.open(ApkImporter.installBuiltinSample(ctx).absolutePath)
+        try {
+            val (_, fns) = parseFunctionList(engine.listFunctions(handle))
+            val fn = fns.first { it.name == "sample_entry" }
+            engine.buildCfg(handle, fn.start, 4096, 15_000)
+            val started = System.currentTimeMillis()
+            val json = engine.replayTo(handle, fn.start, fn.start, 50)
+            val elapsed = System.currentTimeMillis() - started
+            assertTrue("budget must be honored, elapsed=${elapsed}ms json=$json", elapsed < 8_000)
+            val report = parseReplayReport(json)
+            if (!report.ok) {
+                assertTrue("kind=${report.kind} json=$json", report.kind in setOf("timeout", "cancelled", "not_reached", "unsupported"))
+            }
         } finally {
             engine.close(handle)
         }

@@ -22,6 +22,11 @@ import com.icode.asmviewer.data.formatHex
 import com.icode.asmviewer.data.formatWideHex
 import com.icode.asmviewer.ui.formatReplayRegLine
 import com.icode.asmviewer.ui.formatReplayTransition
+import com.icode.asmviewer.ui.formatReplayScalar
+import com.icode.asmviewer.ui.formatReplayMemBytes
+import com.icode.asmviewer.ui.formatReplayInitial
+import com.icode.asmviewer.data.parseJsonU64
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -156,7 +161,7 @@ class ReplayDetailsTest {
         val fiveToTwelve = formatReplayTransition(
             addX0.name, addX0.beforeKnown, addX0.before, addX0.known, addX0.value, unknown,
         )
-        assertEquals("${addX0.name}:5→12", fiveToTwelve)
+        assertEquals("${addX0.name}:0x5→0xc", fiveToTwelve)
         assertTrue("MOV must write 5, got $movX0", movX0.known && movX0.value == 5L)
         assertTrue("ADD must write 12 from 5, got $addX0", addX0.known && addX0.value == 12L && addX0.before == 5L)
         compose.onNodeWithText(fiveToTwelve, substring = false).assertIsDisplayed()
@@ -225,4 +230,31 @@ class ReplayDetailsTest {
         assertEquals(12L, x0Again.single().value)
         compose.onNodeWithText(fiveToTwelve, substring = false).assertIsDisplayed()
     }
+
+    @Test
+    fun replayValueChangesUseHexIncludingZeroNegativeAndUnknown() {
+        val unknown = "unknown"
+        assertEquals("0x0", formatReplayScalar(true, 0L, unknown, "x0"))
+        assertEquals("0x5", formatReplayScalar(true, 5L, unknown, "x0"))
+        assertEquals("0xc", formatReplayScalar(true, 12L, unknown, "x0"))
+        assertEquals("x0:0x5→0xc", formatReplayTransition("x0", true, 5L, true, 12L, unknown))
+        assertEquals("z:0x0→0x1", formatReplayTransition("z", true, 0L, true, 1L, unknown))
+        assertEquals("0xffffffff", formatReplayScalar(true, 0xffffffffL, unknown, "w0"))
+        assertEquals("0xffffffffffffffff", formatReplayScalar(true, -1L, unknown, "x0"))
+        assertEquals("0x8000000000000000", formatReplayScalar(true, Long.MIN_VALUE, unknown, "x0"))
+        assertEquals(unknown, formatReplayScalar(false, 0L, unknown, "x0"))
+        assertEquals(unknown, formatReplayScalar(false, 42L, unknown, "z"))
+        assertEquals("0x00", formatReplayMemBytes("00", unknown))
+        assertEquals("0xabcd", formatReplayMemBytes("0xABCD", unknown))
+        assertEquals(unknown, formatReplayMemBytes("", unknown))
+        assertEquals("x0:0xffffffffffffffff", formatReplayInitial("x0", -1L, true, unknown))
+        val high = parseJsonU64(JSONObject("{\"value\":\"0xffffffffffffffff\"}"), "value")
+        assertEquals(-1L, high)
+        val msb = parseJsonU64(JSONObject("{\"value\":\"0x8000000000000000\"}"), "value")
+        assertEquals(Long.MIN_VALUE, msb)
+        // Decimal JSON numbers that fit in signed 64-bit still parse.
+        val twelve = parseJsonU64(JSONObject("{\"value\":12}"), "value")
+        assertEquals(12L, twelve)
+    }
+
 }

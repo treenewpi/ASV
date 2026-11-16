@@ -37,9 +37,10 @@ private enum class ViewerNavId { Functions, Listing, Cfg, Replay }
 
 @Composable
 fun ViewerNavBar(viewModel: ViewerViewModel, modifier: Modifier = Modifier) {
-    val onFunctionList = viewModel.selectedFunction == null
-    val listingSelected = !onFunctionList && viewModel.viewMode == ViewMode.Flat
-    val cfgSelected = !onFunctionList && viewModel.viewMode == ViewMode.Cfg
+    val inViewer = viewModel.selectedFunction != null || viewModel.selectedAddress != null
+    val onFunctionList = !inViewer
+    val listingSelected = inViewer && viewModel.viewMode == ViewMode.Flat
+    val cfgSelected = inViewer && viewModel.viewMode == ViewMode.Cfg
     val replaySelected = viewModel.replayPanelExpanded && viewModel.replayReport != null
     Row(
         modifier
@@ -65,7 +66,7 @@ fun ViewerNavBar(viewModel: ViewerViewModel, modifier: Modifier = Modifier) {
             contentDescription = stringResource(R.string.cd_nav_listing),
             testTag = "nav_listing",
             onClick = {
-                if (viewModel.selectedFunction != null) viewModel.updateViewMode(ViewMode.Flat)
+                if (inViewer) viewModel.updateViewMode(ViewMode.Flat)
             },
             modifier = Modifier.weight(1f),
         )
@@ -76,7 +77,7 @@ fun ViewerNavBar(viewModel: ViewerViewModel, modifier: Modifier = Modifier) {
             contentDescription = stringResource(R.string.cd_nav_cfg),
             testTag = "nav_cfg",
             onClick = {
-                if (viewModel.selectedFunction != null) viewModel.updateViewMode(ViewMode.Cfg)
+                if (inViewer) viewModel.updateViewMode(ViewMode.Cfg)
             },
             modifier = Modifier.weight(1f),
         )

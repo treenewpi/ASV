@@ -38,7 +38,7 @@ import com.icode.asmviewer.data.ViewerViewModel
 import com.icode.asmviewer.data.formatHex
 import com.icode.asmviewer.data.formatWideHex
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ReplayDetailsPage(viewModel: ViewerViewModel, modifier: Modifier = Modifier) {
     val report = viewModel.replayReport
@@ -95,7 +95,7 @@ fun ReplayDetailsPage(viewModel: ViewerViewModel, modifier: Modifier = Modifier)
             )
         },
     ) { padding ->
-        if (report == null || (report.steps.isEmpty() && report.authenticityIssues().isEmpty())) {
+        if (report == null || (report.steps.isEmpty() && report.authenticityIssues().isEmpty() && report.initialAssignments.isEmpty())) {
             Text(
                 stringResource(R.string.replay_details_empty),
                 style = MaterialTheme.typography.bodyMedium,
@@ -120,6 +120,37 @@ fun ReplayDetailsPage(viewModel: ViewerViewModel, modifier: Modifier = Modifier)
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.testTag("replay_issue"),
                     )
+                }
+            }
+            if (report.initialAssignments.isNotEmpty()) {
+                item(key = "initial-title") {
+                    Text(
+                        stringResource(R.string.replay_initial_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .testTag("replay_initial_title"),
+                    )
+                }
+                item(key = "initial-body") {
+                    Text(
+                        stringResource(R.string.replay_initial_body),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                report.initialAssignments.forEach { asg ->
+                    item(key = "initial-${asg.name}") {
+                        val line = formatReplayInitial(asg.name, asg.value, asg.known, unknown, asg.sizeBytes)
+                        Text(
+                            line,
+                            style = ReplayMono,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("replay_initial_${asg.name}")
+                                .combinedClickable(onClick = {}, onLongClick = { copyAndNotify(line) })
+                                .padding(start = 12.dp, top = 1.dp),
+                        )
+                    }
                 }
             }
             itemsIndexed(steps, key = { index, step -> "${step.pc}-$index" }) { _, step ->
@@ -154,7 +185,7 @@ private fun DetailStep(step: ReplayStep, unknown: String, onCopy: (String) -> Un
                 .padding(top = 4.dp),
         )
         step.registerWrites.forEach { w ->
-            val change = formatReplayTransition(w.name, w.beforeKnown, w.before, w.known, w.value, unknown)
+            val change = formatReplayTransition(w.name, w.beforeKnown, w.before, w.known, w.value, unknown, w.sizeBytes)
             Text(
                 change,
                 style = ReplayMono,
@@ -167,7 +198,7 @@ private fun DetailStep(step: ReplayStep, unknown: String, onCopy: (String) -> Un
         }
         step.memoryWrites.forEach { m ->
             if (m.before == m.after) return@forEach
-            val change = "${formatWideHex(m.address)}:${m.before}→${m.after}"
+            val change = "${formatWideHex(m.address)}:${formatReplayMemBytes(m.before, unknown)}→${formatReplayMemBytes(m.after, unknown)}"
             Text(
                 change,
                 style = ReplayMono,

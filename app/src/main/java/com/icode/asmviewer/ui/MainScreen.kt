@@ -45,7 +45,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -58,7 +61,7 @@ import com.icode.asmviewer.data.ViewMode
 import com.icode.asmviewer.data.ViewerViewModel
 import com.icode.asmviewer.data.formatAddr
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun MainScreen(viewModel: ViewerViewModel) {
     val snackbar = remember { SnackbarHostState() }
@@ -120,6 +123,7 @@ fun MainScreen(viewModel: ViewerViewModel) {
 
     Box(Modifier.fillMaxSize()) {
     Scaffold(
+        modifier = Modifier.semantics { testTagsAsResourceId = true },
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -217,7 +221,7 @@ fun MainScreen(viewModel: ViewerViewModel) {
                 BrowseScreen.Functions -> {
                     ViewerNavBar(viewModel)
                     NonArm64Hint(viewModel)
-                    if (viewModel.selectedFunction == null) {
+                    if (viewModel.selectedFunction == null && viewModel.selectedAddress == null) {
                         FunctionListPane(viewModel, Modifier.fillMaxSize())
                     } else {
                         when (viewModel.viewMode) {

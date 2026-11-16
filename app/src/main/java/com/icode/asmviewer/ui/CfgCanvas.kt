@@ -5,8 +5,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -36,12 +38,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -133,22 +138,49 @@ fun CfgCanvas(viewModel: ViewerViewModel, modifier: Modifier = Modifier) {
         unknownBlock = { addr -> context.getString(R.string.cfg_unknown_block, addr) },
     )
 
-    Box(
-        modifier
-            .background(surface)
-            .onSizeChanged { size: IntSize ->
-                viewport = Size(size.width.toFloat(), size.height.toFloat())
-            },
-    ) {
+    val fn = viewModel.selectedFunction
+    Column(modifier.background(surface)) {
+        if (fn != null) {
+            Text(
+                text = "${fn.displayName}  ${formatAddr(fn.start)}",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .testTag("cfg_function_label")
+                    .semantics {
+                        contentDescription = "CFG function ${fn.displayName} ${formatAddr(fn.start)}"
+                    },
+            )
+        }
+        Box(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .onSizeChanged { size: IntSize ->
+                    viewport = Size(size.width.toFloat(), size.height.toFloat())
+                },
+        ) {
         if (layout == null || snap == null) {
-            Text(stringResource(R.string.cfg_empty), modifier = Modifier.align(Alignment.Center))
+            val emptyText = if (fn == null && viewModel.selectedAddress != null) {
+                stringResource(R.string.cfg_no_function)
+            } else {
+                stringResource(R.string.cfg_empty)
+            }
+            Text(
+                emptyText,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .testTag("cfg_empty_state")
+                    .padding(16.dp),
+            )
         } else {
             if (snap.truncated) {
                 Text(
                     stringResource(R.string.cfg_truncated, snap.truncationReason ?: stringResource(R.string.cfg_truncated_default), snap.blockCount),
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                    modifier = Modifier.align(Alignment.TopStart).padding(top = 28.dp, start = 8.dp, end = 8.dp),
                 )
             }
             Canvas(
@@ -283,18 +315,13 @@ fun CfgCanvas(viewModel: ViewerViewModel, modifier: Modifier = Modifier) {
                     }
                 }
             }
-            Text(
-                stringResource(R.string.cfg_caption),
-                color = colors.muted,
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
-            )
             Row(
                 Modifier.align(Alignment.BottomEnd).padding(8.dp).background(surface.copy(alpha = 0.86f)),
             ) {
                 TextButton(onClick = { fitAll() }) { Text(stringResource(R.string.cfg_fit_all)) }
                 TextButton(onClick = { centerBlock() }) { Text(stringResource(R.string.cfg_center_block)) }
             }
+        }
         }
     }
 }
@@ -423,10 +450,12 @@ private fun DrawScope.drawCfgBlock(
         style = Stroke(width = if (isSelected) 2.4f else 1.2f),
     )
     if (lod == 0) return
+    // Header shows only the block start address. End/range stays in
+    // hit-testing (start inclusive, end exclusive) and is not drawn.
     val header = if (lb.block.unknownTarget) {
         labels.unknownBlock(formatAddr(lb.block.start))
     } else {
-        "${formatAddr(lb.block.start)}–${formatAddr(lb.block.end)}"
+        formatAddr(lb.block.start)
     }
     val style = TextStyle(
         fontFamily = FontFamily.Monospace,
@@ -436,13 +465,13 @@ private fun DrawScope.drawCfgBlock(
     val pad = metrics.padInside
     var y = lb.rect.top + pad
     val textW = (lb.rect.width - pad * 2f).coerceAtLeast(8f)
-    drawText(
-        measurer,
-        header,
-        Offset(lb.rect.left + pad, y),
-        style,
-        maxLines = 1,
-        size = Size(textW, metrics.headerHeight),
+    drawCfgLine(
+        measurer = measurer,
+        text = header,
+        topLeft = Offset(lb.rect.left + pad, y),
+        style = style,
+        maxWidth = textW,
+        boxHeight = metrics.headerHeight,
     )
     if (lod < 2) return
     y += metrics.headerHeight + pad * 0.5f
@@ -462,26 +491,52 @@ private fun DrawScope.drawCfgBlock(
                 append(insn.operands)
             }
         }
-        drawText(
-            measurer,
-            text,
-            Offset(lb.rect.left + pad, y),
-            TextStyle(fontFamily = FontFamily.Monospace, fontSize = metrics.fontSizeSp.sp, color = lineColor),
-            maxLines = 1,
-            size = Size(textW, metrics.lineHeight),
+        drawCfgLine(
+            measurer = measurer,
+            text = text,
+            topLeft = Offset(lb.rect.left + pad, y),
+            style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = metrics.fontSizeSp.sp, color = lineColor),
+            maxWidth = textW,
+            boxHeight = metrics.lineHeight,
         )
         y += metrics.lineHeight
     }
     if (lb.block.instructions.size > visible.size) {
-        drawText(
-            measurer,
-            labels.moreInsns(lb.block.instructions.size),
-            Offset(lb.rect.left + pad, y),
-            TextStyle(fontFamily = FontFamily.Monospace, fontSize = metrics.fontSizeSp.sp, color = colors.muted),
-            maxLines = 1,
-            size = Size(textW, metrics.lineHeight),
+        drawCfgLine(
+            measurer = measurer,
+            text = labels.moreInsns(lb.block.instructions.size),
+            topLeft = Offset(lb.rect.left + pad, y),
+            style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = metrics.fontSizeSp.sp, color = colors.muted),
+            maxWidth = textW,
+            boxHeight = metrics.lineHeight,
         )
     }
+}
+
+
+/**
+ * Lay out a CFG line with a width cap only. Height is not used as a tight
+ * constraint, because rounding that constraint below the glyph height can
+ * drop the entire line. The precomputed [boxHeight] still reserves space
+ * in the node so the last line stays inside the box and edges start below it.
+ */
+private fun DrawScope.drawCfgLine(
+    measurer: TextMeasurer,
+    text: String,
+    topLeft: Offset,
+    style: TextStyle,
+    maxWidth: Float,
+    @Suppress("UNUSED_PARAMETER") boxHeight: Float,
+) {
+    val widthPx = maxWidth.toInt().coerceAtLeast(1)
+    val layout = measurer.measure(
+        text = text,
+        style = style,
+        constraints = Constraints(maxWidth = widthPx),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+    drawText(textLayoutResult = layout, topLeft = topLeft)
 }
 
 private fun Rect.inflateWorld(delta: Float) =

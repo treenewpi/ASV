@@ -65,6 +65,10 @@ class ListingDensityTest {
         compose.runOnUiThread { vm().selectFunction(fn) }
         waitUntil(label = "snapshot for cond_abs") { vm().snapshot != null && vm().selectedFunction?.name == "cond_abs" }
         compose.runOnUiThread { vm().updateViewMode(ViewMode.Flat) }
+        waitUntil(label = "continuous listing around cond_abs") {
+            val start = fn.start
+            vm().listingRows.any { it.kind != com.icode.asmviewer.data.ListingKind.FunctionLabel && it.covers(start) }
+        }
         compose.waitForIdle()
         compose.onNodeWithTag("nav_listing").performClick()
         compose.waitForIdle()

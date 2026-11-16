@@ -65,12 +65,16 @@
     <string name="source_heuristic">Heuristic</string>
     <string name="source_executable_view">Executable-segment view</string>
     <string name="fn_meta">%1$s  %2$s  source=%3$s  %4$d instructions</string>
+        <string name="listing_selected_fn">Selected function: %1$s  %2$s</string>
+    <string name="listing_marker_data">data</string>
+    <string name="listing_marker_gap">gap</string>
+    <string name="listing_marker_unmapped">unmapped</string>
     <string name="view_region_name">View %1$s</string>
 
     <string name="cfg_empty">No control-flow graph yet</string>
+    <string name="cfg_no_function">No known function owns this address, so a control-flow graph is not shown.</string>
     <string name="cfg_truncated">Graph is incomplete: %1$s (%2$d blocks)</string>
     <string name="cfg_truncated_default">truncated</string>
-    <string name="cfg_caption">Block instructions come from the icode CFG DOT export. Layout is a local layered layout, not Graphviz.</string>
     <string name="cfg_fit_all">Fit all</string>
     <string name="cfg_center_block">Center current block</string>
     <string name="cfg_edge_unknown">Unknown</string>
@@ -117,11 +121,19 @@
     <string name="replay_status_no_exec">No instruction was executed.</string>
     <string name="replay_flags">Condition flags</string>
     <string name="replay_fail_reach">Couldn\'t reach the selected location.</string>
+    <string name="replay_fail_infeasible">The selected location cannot be reached from the function entry.</string>
+    <string name="replay_fail_timeout">Couldn\'t find a starting state that reaches the selected location in time.</string>
+    <string name="replay_fail_cancelled">Replay was cancelled.</string>
+    <string name="replay_fail_unsupported">Couldn\'t reach the selected location because some instruction or memory couldn\'t be handled.</string>
+    <string name="replay_initial_used">Starting registers were set automatically to reach the selected instruction.</string>
+    <string name="replay_initial_title">Starting registers for this path</string>
+    <string name="replay_initial_body">These values were chosen automatically so execution could reach the selected instruction. They are not a default environment, and not values from a real run on the device.</string>
     <string name="replay_uncertain">Some of the result couldn\'t be determined.</string>
     <string name="replay_skipped_calls">External calls were skipped.</string>
     <string name="replay_multi_path">There may be more than one path to this location. This result is for one of them.</string>
     <string name="replay_loop_once">A loop was encountered; the body was taken once, not repeated by trip count.</string>
     <string name="replay_need_selection">Select a location in the graph or listing first, then replay to it.</string>
+    <string name="replay_not_in_function">The selected address is not inside a function, so replay from a function entry is not available.</string>
     <string name="replay_need_arm64">Replay is available for ARM64 only.</string>
     <string name="replay_busy">Replaying…</string>
     <string name="replay_details">Details</string>

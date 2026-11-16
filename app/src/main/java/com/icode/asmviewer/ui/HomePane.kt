@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.icode.asmviewer.BuildConfig
 import com.icode.asmviewer.R
 
 @Composable
@@ -53,11 +54,15 @@ fun HomePane(
         EntryCard(Icons.Filled.Android, stringResource(R.string.home_open_apk), stringResource(R.string.home_open_apk_sub), onOpenApk, Modifier.testTag("home_open_apk"))
         EntryCard(Icons.Filled.Apps, stringResource(R.string.home_installed), stringResource(R.string.home_installed_sub), onOpenInstalled, Modifier.testTag("home_installed"))
         EntryCard(Icons.Filled.Memory, stringResource(R.string.home_open_elf), stringResource(R.string.home_open_elf_sub), onOpenElf, Modifier.testTag("home_open_elf"))
-        TextButton(onClick = onOpenApkAnyType, modifier = Modifier.align(Alignment.Start).testTag("home_open_apk_any")) {
-            Text(stringResource(R.string.home_browse_all))
-        }
-        TextButton(onClick = onSample, modifier = Modifier.align(Alignment.Start).testTag("home_sample")) {
-            Text(stringResource(R.string.home_sample))
+        // Debug-only test affordances. Release builds must not show, reserve
+        // space for, or offer a hidden path to these entries.
+        if (BuildConfig.DEBUG) {
+            TextButton(onClick = onOpenApkAnyType, modifier = Modifier.align(Alignment.Start).testTag("home_open_apk_any")) {
+                Text(stringResource(R.string.home_browse_all))
+            }
+            TextButton(onClick = onSample, modifier = Modifier.align(Alignment.Start).testTag("home_sample")) {
+                Text(stringResource(R.string.home_sample))
+            }
         }
     }
 }

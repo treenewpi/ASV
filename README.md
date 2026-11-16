@@ -12,13 +12,14 @@ source, headers, CMake, or static libraries (`.a`). Release APKs are not
 committed; get them from a GitHub Release asset when one is published, or
 build `assembleRelease` locally.
 
-Version: **1.0.9** (versionCode 10). ABI: `arm64-v8a` only. The minimum
+Version: **1.0.12** (versionCode 13). ABI: `arm64-v8a` only. The minimum
 supported OS is Android 8.0 (API 24). Device testing for this release was
 done on a Pixel 6; that is **not** a claim that an API 24 device was tested.
 
 ## Screenshots
 
-These are real UI screens (Chinese), not mockups. The layout is unchanged from 1.0.8.
+These are real UI screens (Chinese), not mockups. The home screen shows the
+three official import entries only.
 
 <p>
 <img src="docs/screenshots/zh-home.png" alt="Home" width="220">
@@ -28,10 +29,25 @@ These are real UI screens (Chinese), not mockups. The layout is unchanged from 1
 <img src="docs/screenshots/zh-replay-details.png" alt="Replay details" width="220">
 </p>
 
-- Home: open an APK, an installed app, or a standalone ELF / `.so`, or load the built-in sample.
-- Listing: compact address / bytes / instruction rows; long-press a row to copy it.
-- Control-flow graph: local layout, pinch-zoom and pan.
-- Replay: starts at the function entry and follows the instructions that actually run (including branches and calls that stay inside the mapped image). The main view lists only registers that actually changed; **Details** on the right opens a full-screen page with each instruction in trace order (for example `x0:5→12`). If the selected instruction is not reached under the default environment, the app says so and still shows the steps that did run. Instructions that cannot be executed are reported as unsuccessful, not as a successful result.
+- Home: open an APK, an installed app, or a standalone ELF / `.so`.
+- Listing: a continuous, address-ordered view across function boundaries,
+  with function labels in the list. Scroll to load more addresses within a
+  bound. Long-press a row to copy it. Jump goes to a virtual address in this
+  same list.
+- Control-flow graph: after you tap a listing instruction, the graph is that
+  instruction's function, with its block highlighted. If you only scroll,
+  the graph follows the first visible instruction. An address that no known
+  function owns does not reuse a previous graph. Pinch-zoom and pan still
+  apply.
+- Replay: starts at the function entry and follows the instructions that
+  actually run (including branches and calls that stay inside the mapped
+  image). The main view lists only registers that actually changed;
+  **Details** on the right opens a full-screen page with each instruction in
+  trace order and hexadecimal values (for example `x0:0xffffffff→0x1`). If
+  the selected instruction is not reached under the default environment, the
+  app says so and still shows the steps that did run. Instructions that
+  cannot be executed are reported as unsuccessful, not as a successful
+  result. Constraint solving is bounded; some paths may be left unsolved.
 
 ## Build
 
@@ -67,13 +83,19 @@ The Kotlin side loads it with `System.loadLibrary("icode_jni")`.
 
 - Replay is read-only and uses a default environment; there is no register editor and no extra settings screen.
 - Replay follows the path the default environment actually takes. Untaken branches are not forced. A selected instruction off that path is reported as not reached; the details page still lists the instructions that did run. A mapped call is followed; if a call overwrites the return address and execution cannot return, later instructions in the caller are not invented.
+- Constraint solving used for some replay and indirect-branch cases is bounded. A timeout or an incomplete model means that result is not a full proof of the path.
+- Listing decode and paging are also bounded. Very large images may require further scrolling rather than loading every instruction at once.
 - The prebuilt engine library is **not** open-sourced by this repository. The
   binary was stripped of ELF debug symbols; that does **not** mean it cannot
   be reverse engineered, and some third-party path strings may remain. See
   `NOTICE`.
-- 1.0.9 replay and details were instrumented on a Pixel 6 (arithmetic, condition flags, stack, taken and untaken branches, indirect targets, failure handling, and the full-screen details page). Large-CFG stress and replay-cancel were **not
-  covered** (analysis finished too quickly to show a cancel control). Do not
-  treat those as passing tests.
+- 1.0.12 was checked on a Pixel 6: official ELF import, a continuous listing
+  that crosses function boundaries in both directions, listing click and
+  scroll-only updates of the control-flow graph, an unowned address that did
+  not keep a previous graph, and replay Details hexadecimal output for a
+  known negative-to-NEG case. Large-CFG stress, replay-cancel, and a rapid
+  click race on the graph were **not** covered. Do not treat those as
+  passing tests.
 - The release signing key is not the same as the earlier debug key, so this
   APK cannot be installed as an in-place update over an existing debug build.
 

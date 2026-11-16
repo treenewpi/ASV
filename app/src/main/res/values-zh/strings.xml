@@ -65,12 +65,16 @@
     <string name="source_heuristic">启发式</string>
     <string name="source_executable_view">可执行段查看</string>
     <string name="fn_meta">%1$s  %2$s  来源=%3$s  指令 %4$d</string>
+        <string name="listing_selected_fn">当前函数：%1$s  %2$s</string>
+    <string name="listing_marker_data">数据</string>
+    <string name="listing_marker_gap">空隙</string>
+    <string name="listing_marker_unmapped">未映射</string>
     <string name="view_region_name">查看区域 %1$s</string>
 
     <string name="cfg_empty">尚无控制流图</string>
+    <string name="cfg_no_function">该地址不属于已知函数，因此不显示控制流图。</string>
     <string name="cfg_truncated">图不完整：%1$s（%2$d 块）</string>
     <string name="cfg_truncated_default">已截断</string>
-    <string name="cfg_caption">数据来自 icode CFG DOT（块内全部指令）。布局为本地分层布局，不是 Graphviz。</string>
     <string name="cfg_fit_all">适应全图</string>
     <string name="cfg_center_block">当前块居中</string>
     <string name="cfg_edge_unknown">未知</string>
@@ -117,11 +121,19 @@
     <string name="replay_status_no_exec">没有执行任何指令。</string>
     <string name="replay_flags">条件标志</string>
     <string name="replay_fail_reach">未能到达所选位置。</string>
+    <string name="replay_fail_infeasible">选中的指令无法从函数入口到达。</string>
+    <string name="replay_fail_timeout">未能及时找到能到达选中位置的初始状态。</string>
+    <string name="replay_fail_cancelled">重放已取消。</string>
+    <string name="replay_fail_unsupported">遇到无法处理的指令或内存，未能到达选中位置。</string>
+    <string name="replay_initial_used">为到达选中位置，已自动设定部分初始寄存器。</string>
+    <string name="replay_initial_title">本路径的初始寄存器</string>
+    <string name="replay_initial_body">这些初始值是为了执行到选中指令而自动求得的，不是无条件的默认环境，也不是设备上真实运行的值。</string>
     <string name="replay_uncertain">部分执行结果无法确定。</string>
     <string name="replay_skipped_calls">已跳过外部调用。</string>
     <string name="replay_multi_path">到达该位置可能有多条路径，当前只显示其中一条。</string>
     <string name="replay_loop_once">遇到循环时只走了一遍，没有按次数重复。</string>
     <string name="replay_need_selection">请先在图或列表中选择要重放的位置。</string>
+    <string name="replay_not_in_function">未选中函数内的指令，无法从函数入口重放。</string>
     <string name="replay_need_arm64">重放仅支持 ARM64。</string>
     <string name="replay_busy">重放中…</string>
     <string name="replay_details">详情</string>

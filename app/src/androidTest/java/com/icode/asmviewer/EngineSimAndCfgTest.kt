@@ -5,6 +5,11 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.icode.asmviewer.data.ApkImporter
 import com.icode.asmviewer.data.EngineNative
 import com.icode.asmviewer.data.parseCfgSnapshot
+import com.icode.asmviewer.data.parseReplayReport
+import com.icode.asmviewer.data.formatCfgNodeHeader
+import com.icode.asmviewer.data.formatAddr
+import com.icode.asmviewer.data.CfgLayoutMetrics
+import com.icode.asmviewer.data.CfgBlockSnap
 import com.icode.asmviewer.data.parseFunctionList
 import com.icode.asmviewer.data.parseSimState
 import org.junit.Assert.assertEquals
@@ -118,18 +123,101 @@ class EngineSimAndCfgTest {
 
 
     @Test
-    fun condAbsReplayToNegIsDominatorPath() {
+    fun condAbsReplayToNegUsesSolvedConcretePath() {
         val engine = EngineNative()
         val h = engine.open(sampleFile().absolutePath)
         try {
+            engine.buildCfg(h, 0x15a4, 4096, 15_000)
             val json = engine.replayTo(h, 0x15a4, 0x15ac, 8_000)
-            assertTrue(json.contains("icode.replay.v1"))
-            assertTrue(json.contains("concrete") || json.contains("not_reached") || json.contains("dominator_path") || json.contains("reachable_fallback"))
-            assertTrue(json.contains("\"ok\":true") || json.contains("\"ok\": false") || json.contains("\"ok\":false"))
-            // Must not require or mention user register initialization in the report semantics.
-            assertTrue(!json.contains("set_reg") && !json.contains("userInit"))
+            val report = parseReplayReport(json)
+            assertTrue("must reach NEG, json=$json", report.ok)
+            assertEquals("concrete_solved", report.kind)
+            assertTrue(report.steps.any { it.mnemonic.equals("NEG", true) && it.pc == 0x15acL })
+            assertTrue(report.initialAssignments.isNotEmpty())
+            assertTrue("must not mention manual register setup, json=$json", !json.contains("set_reg") && !json.contains("userInit"))
         } finally {
             engine.close(h)
+        }
+    }
+
+    @Test
+    fun cfgBlocksKeepLastInstructionMatchingListingAndHeaderIsStartOnly() {
+        val engine = EngineNative()
+        val handle = engine.open(sampleFile().absolutePath)
+        try {
+            val (_, fns) = parseFunctionList(engine.listFunctions(handle))
+            for (name in listOf("cond_abs", "linear_add", "indirect_br", "indirect_blr", "sample_entry")) {
+                val fn = fns.first { it.name == name }
+                val snap = parseCfgSnapshot(engine.buildCfg(handle, fn.start, 4096, 15_000))
+                val listing = snap.instructionsInOrder
+                assertTrue("$name must have listing instructions", listing.isNotEmpty())
+                for (block in snap.blocks.filter { !it.unknownTarget && it.instructions.isNotEmpty() }) {
+                    val inRange = listing.filter { it.address >= block.start && it.address < block.end }
+                    assertEquals(
+                        "$name block 0x${block.start.toString(16)} must keep the same last instruction as the listing",
+                        inRange.lastOrNull()?.let { it.address to it.mnemonic },
+                        block.instructions.last().let { it.address to it.mnemonic },
+                    )
+                    assertEquals(
+                        "$name block 0x${block.start.toString(16)} instruction list must match the listing range",
+                        inRange.map { it.address to it.mnemonic.lowercase() },
+                        block.instructions.map { it.address to it.mnemonic.lowercase() },
+                    )
+                    val header = formatCfgNodeHeader(block.start)
+                    assertEquals(formatAddr(block.start), header)
+                    assertFalse("header must not show a range, header=$header", header.contains("–") || header.contains("-0x"))
+                    if (block.end != block.start) {
+                        assertFalse(
+                            "header must not include the end address, header=$header end=${formatAddr(block.end)}",
+                            header.contains(formatAddr(block.end)),
+                        )
+                    }
+                }
+            }
+            val metrics = CfgLayoutMetrics(
+                blockWidth = 200f,
+                lineHeight = 16f,
+                headerHeight = 16f,
+                padInside = 8f,
+                hGap = 16f,
+                vGap = 16f,
+                graphPad = 16f,
+                fontSizeSp = 12f,
+                labelFontSizeSp = 11f,
+            )
+            fun fakeBlock(count: Int): CfgBlockSnap {
+                val start = 0x1000L
+                val ins = (0 until count).map { i ->
+                    com.icode.asmviewer.data.InstructionSnap(
+                        address = start + i * 4,
+                        size = 4,
+                        bytes = "1fd03fd6",
+                        mnemonic = if (i == count - 1) "RET" else "NOP",
+                        operands = "",
+                        category = "Other",
+                        branchTarget = null,
+                    )
+                }
+                return CfgBlockSnap(
+                    id = 1,
+                    start = start,
+                    end = start + count * 4,
+                    type = "Normal",
+                    unknownTarget = false,
+                    inFunctionBounds = true,
+                    instructions = ins,
+                    successors = emptyList(),
+                )
+            }
+            for (count in listOf(1, 2, 5)) {
+                val h = metrics.blockHeight(fakeBlock(count))
+                val lastLineBottom = metrics.padInside + metrics.headerHeight + metrics.padInside * 0.5f + count * metrics.lineHeight
+                val bottom = lastLineBottom + metrics.padInside
+                assertEquals("height must reserve the last line plus bottom padding, count=$count", bottom, h, 0.01f)
+                assertTrue("outgoing edge must start below the last line, count=$count", h - lastLineBottom > 0f)
+            }
+        } finally {
+            engine.close(handle)
         }
     }
 }

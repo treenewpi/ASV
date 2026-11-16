@@ -58,13 +58,33 @@ internal val ReplayMono = TextStyle(
 
 private val FlagNames = setOf("n", "z", "c", "v", "nzcv", "cpsr", "pstate")
 
-/** Compact known values as decimal when small; otherwise hex. Unknown stays as the provided label. */
-fun formatReplayScalar(known: Boolean, value: Long, unknownLabel: String): String {
-    if (!known) return unknownLabel
-    return if (value >= 0L && value < 0x10000L) value.toString() else formatWideHex(value)
+/**
+ * Compact 0x-prefixed hex for a register, flag, or initial value.
+ * Uses two's complement of the value's width. Unknown stays [unknownLabel], never 0.
+ */
+fun replayValueWidthBits(name: String, sizeBytes: Int = 0): Int {
+    val n = name.trim().lowercase()
+    if (n in setOf("n", "z", "c", "v")) return 1
+    if (n.matches(Regex("""w\d+""")) || n in setOf("nzcv", "cpsr", "pstate", "spsr")) return 32
+    if (sizeBytes in 1..8) return sizeBytes * 8
+    return 64
 }
 
-/** One-step change, e.g. x0:5→12 or z:0→1. */
+fun formatReplayScalar(
+    known: Boolean,
+    value: Long,
+    unknownLabel: String,
+    name: String = "",
+    sizeBytes: Int = 0,
+): String {
+    if (!known) return unknownLabel
+    val bits = replayValueWidthBits(name, sizeBytes).coerceIn(1, 64)
+    val mask = if (bits >= 64) ULong.MAX_VALUE else (1UL shl bits) - 1UL
+    val u = value.toULong() and mask
+    return "0x" + u.toString(16)
+}
+
+/** One-step change, e.g. x0:0x5→0xc or z:0x0→0x1. */
 fun formatReplayTransition(
     name: String,
     beforeKnown: Boolean,
@@ -72,10 +92,23 @@ fun formatReplayTransition(
     afterKnown: Boolean,
     after: Long,
     unknownLabel: String,
+    sizeBytes: Int = 0,
 ): String {
-    val b = formatReplayScalar(beforeKnown && before != null, before ?: 0L, unknownLabel)
-    val a = formatReplayScalar(afterKnown, after, unknownLabel)
+    val b = formatReplayScalar(beforeKnown && before != null, before ?: 0L, unknownLabel, name, sizeBytes)
+    val a = formatReplayScalar(afterKnown, after, unknownLabel, name, sizeBytes)
     return "$name:$b→$a"
+}
+
+fun formatReplayMemBytes(hex: String, unknownLabel: String): String {
+    val raw = hex.trim()
+    if (raw.isEmpty()) return unknownLabel
+    val digits = if (raw.startsWith("0x") || raw.startsWith("0X")) raw.substring(2) else raw
+    if (digits.isEmpty()) return unknownLabel
+    return "0x" + digits.lowercase()
+}
+
+fun formatReplayInitial(name: String, value: Long, known: Boolean, unknownLabel: String, sizeBytes: Int = 0): String {
+    return "$name:${formatReplayScalar(known, value, unknownLabel, name, sizeBytes)}"
 }
 
 fun formatReplayRegLine(name: String, known: Boolean, value: Long, unknownLabel: String): String {
@@ -94,8 +127,15 @@ fun ReplayStep.hasVisibleChange(): Boolean {
 }
 
 fun ReplayReport.authenticityIssues(): List<Int> = buildList {
-    if (!ok) add(R.string.replay_fail_reach)
-    else if (steps.isEmpty()) add(R.string.replay_status_no_exec)
+    when (kind) {
+        "infeasible" -> add(R.string.replay_fail_infeasible)
+        "timeout" -> add(R.string.replay_fail_timeout)
+        "cancelled" -> add(R.string.replay_fail_cancelled)
+        "unsupported", "unavailable" -> add(R.string.replay_fail_unsupported)
+        "not_reached" -> add(R.string.replay_fail_reach)
+        else -> if (!ok) add(R.string.replay_fail_reach)
+    }
+    if (ok && steps.isEmpty()) add(R.string.replay_status_no_exec)
     if (unknownIndirect) add(R.string.replay_uncertain)
     if (skippedCalls) add(R.string.replay_skipped_calls)
 }
@@ -141,6 +181,13 @@ fun ReplayPanel(viewModel: ViewerViewModel, modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.testTag("replay_issue"),
+                )
+            }
+            if (report.initialAssignments.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.replay_initial_used),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.testTag("replay_initial_used"),
                 )
             }
             if (others.isEmpty() && flags.isEmpty()) {

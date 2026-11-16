@@ -282,6 +282,7 @@ data class ReplayRegister(
     val known: Boolean,
     val before: Long? = null,
     val beforeKnown: Boolean = false,
+    val sizeBytes: Int = 0,
 )
 
 data class ReplayMemWrite(val address: Long, val before: String, val after: String)
@@ -321,6 +322,7 @@ data class ReplayReport(
     val observedRegisters: List<ReplayRegister>,
     val notes: List<String>,
     val defaultEnv: ReplayDefaultEnv? = null,
+    val initialAssignments: List<ReplayRegister> = emptyList(),
 ) {
 }
 
@@ -358,6 +360,39 @@ fun ReplayReport.changedMemory(): List<ReplayMemWrite> {
     return last.values.toList()
 }
 
+
+fun parseJsonU64(obj: org.json.JSONObject, key: String): Long? {
+    if (!obj.has(key) || obj.isNull(key)) return null
+    return parseJsonU64Value(obj.opt(key))
+}
+
+fun parseJsonU64Value(raw: Any?): Long? {
+    if (raw == null || raw == org.json.JSONObject.NULL) return null
+    when (raw) {
+        is Long -> return raw
+        is Int -> return raw.toLong()
+        is java.math.BigInteger -> return raw.toLong()
+        is String -> return parseU64String(raw)
+    }
+    // Never coerce through Double: values above 2^53 would lose low bits.
+    val text = raw.toString()
+    return parseU64String(text)
+}
+
+fun parseU64String(raw: String): Long? {
+    val t = raw.trim()
+    if (t.isEmpty()) return null
+    return try {
+        if (t.startsWith("0x") || t.startsWith("0X")) {
+            t.substring(2).toULong(16).toLong()
+        } else {
+            t.toULong(10).toLong()
+        }
+    } catch (_: NumberFormatException) {
+        null
+    }
+}
+
 fun parseReplayReport(json: String): ReplayReport {
     val obj = org.json.JSONObject(json)
     val pathArr = obj.optJSONArray("pathBlocks")
@@ -372,17 +407,17 @@ fun parseReplayReport(json: String): ReplayReport {
         if (arr == null) return@buildList
         for (i in 0 until arr.length()) {
             val w = arr.getJSONObject(i)
-            val hasAfter = w.has("after") || w.has("value")
-            val after = if (w.has("value")) w.optLong("value") else w.optLong("after")
-            val hasBefore = w.has("before")
-            val before = if (hasBefore) w.optLong("before") else null
+            val afterVal = parseJsonU64(w, "value") ?: parseJsonU64(w, "after")
+            val hasAfter = afterVal != null
+            val beforeVal = parseJsonU64(w, "before")
             add(
                 ReplayRegister(
                     name = w.optString("name"),
-                    value = after,
+                    value = afterVal ?: 0L,
                     known = w.optBoolean("known", hasAfter),
-                    before = before,
-                    beforeKnown = hasBefore && w.optBoolean("beforeKnown", true),
+                    before = beforeVal,
+                    beforeKnown = beforeVal != null && w.optBoolean("beforeKnown", true),
+                    sizeBytes = w.optInt("sizeBytes", 0),
                 ),
             )
         }
@@ -442,5 +477,6 @@ fun parseReplayReport(json: String): ReplayReport {
         observedRegisters = regs(obj.optJSONArray("observedRegisters")),
         notes = notes,
         defaultEnv = defaultEnv,
+        initialAssignments = regs(obj.optJSONArray("initialAssignments")),
     )
 }

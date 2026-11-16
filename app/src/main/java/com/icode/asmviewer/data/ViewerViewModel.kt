@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.ArrayDeque
@@ -71,11 +72,37 @@ class ViewerViewModel(app: Application) : AndroidViewModel(app) {
     var extractedLibraries by mutableStateOf<List<ApkImporter.ExtractedSo>>(emptyList())
         private set
 
+    var listingRows by mutableStateOf<List<ListingRow>>(emptyList())
+        private set
+    var listingReachedStart by mutableStateOf(false)
+        private set
+    var listingReachedEnd by mutableStateOf(false)
+        private set
+    var listingLoadingBefore by mutableStateOf(false)
+        private set
+    var listingLoadingAfter by mutableStateOf(false)
+        private set
+    var listingAnchorAddress by mutableStateOf<Long?>(null)
+        private set
+    var listingAnchorSeq by mutableStateOf(0)
+        private set
+
     private var previousBrowse: BrowseScreen = BrowseScreen.Home
     private var sessionHandle: Long = 0
     private var analysisJob: Job? = null
+    private var cfgRequestId: Int = 0
+    private var listingViewportAnchor: Long? = null
+    private var listingSelectionInViewport: Boolean = true
+    private var listingJob: Job? = null
+    private var listingEpoch: Int = 0
+    private var listingRaw: List<ListingRow> = emptyList()
     private val jumpHistory = ArrayDeque<Long>()
     private val cfgCache = LinkedHashMap<String, CfgSnapshot>()
+
+    private companion object {
+        const val LISTING_PAGE = 128L
+        const val LISTING_MAX_ROWS = 4096
+    }
 
     val filteredFunctions: List<FunctionItem>
         get() {
@@ -123,11 +150,82 @@ class ViewerViewModel(app: Application) : AndroidViewModel(app) {
     fun notifyCopied() { notice = str(R.string.action_copied) }
     fun setQuery(value: String) { functionQuery = value }
     fun updateViewMode(mode: ViewMode) {
-        if (viewMode == mode) return
-        viewMode = mode
-        if (mode == ViewMode.Cfg && selectedAddress != null && snapshot != null) {
-            requestViewport(ViewportRequest.CenterSelection)
+        if (viewMode == mode) {
+            if (mode == ViewMode.Flat) {
+                val va = selectedAddress ?: selectedFunction?.start
+                if (va != null) ensureListingAround(va)
+            } else if (mode == ViewMode.Cfg) {
+                syncCfgFromListingContext()
+            }
+            return
         }
+        viewMode = mode
+        if (mode == ViewMode.Cfg) {
+            syncCfgFromListingContext()
+        }
+        if (mode == ViewMode.Flat) {
+            val va = selectedAddress ?: selectedFunction?.start
+            if (va != null) ensureListingAround(va)
+        }
+    }
+
+    fun updateListingViewport(firstVisibleCode: Long?, selectionInViewport: Boolean) {
+        listingViewportAnchor = firstVisibleCode
+        listingSelectionInViewport = selectionInViewport
+    }
+
+    /**
+     * Tab switch only: resolve the function that the listing is actually
+     * showing, then load/reuse that function's graph. Ordinary scrolling
+     * reports a viewport but does not rebuild CFG.
+     */
+    fun syncCfgFromListingContext() {
+        val addr = resolveCfgSyncAddress(
+            selectedAddress = selectedAddress,
+            selectionInViewport = listingSelectionInViewport,
+            viewportAnchor = listingViewportAnchor,
+        )
+        if (addr == null) {
+            if (selectedFunction != null && snapshot != null) {
+                requestViewport(ViewportRequest.CenterSelection)
+            }
+            return
+        }
+        val fn = functionContaining(addr)
+        if (fn == null) {
+            showUnownedCfgState(addr)
+            return
+        }
+        if (selectedFunction?.start == fn.start) {
+            if (selectedAddress != addr) {
+                replayReport = null
+                replayDetailsOpen = false
+            }
+            selectedAddress = addr
+            if (snapshot != null && snapshot?.functionStart == fn.start) {
+                requestViewport(ViewportRequest.CenterSelection)
+            } else {
+                analyzeFunction(fn, addr)
+            }
+            return
+        }
+        selectedFunction = fn
+        selectedAddress = addr
+        replayReport = null
+        replayDetailsOpen = false
+        analyzeFunction(fn, addr)
+    }
+
+    private fun showUnownedCfgState(addr: Long) {
+        ++cfgRequestId
+        analysisJob?.cancel()
+        selectedFunction = null
+        selectedAddress = addr
+        snapshot = null
+        layout = null
+        replayReport = null
+        replayDetailsOpen = false
+        notice = str(R.string.cfg_no_function)
     }
     fun updateAddressKind(kind: AddressKind) {
         addressKind = kind
@@ -301,6 +399,7 @@ class ViewerViewModel(app: Application) : AndroidViewModel(app) {
         refreshJumpBack()
         viewportKind = ViewportRequest.None
         cfgCache.clear()
+        resetListing()
         val handle = withContext(Dispatchers.IO) { engine.open(file.absolutePath) }
         sessionHandle = handle
         val json = withContext(Dispatchers.IO) { engine.listFunctions(handle) }
@@ -329,6 +428,7 @@ class ViewerViewModel(app: Application) : AndroidViewModel(app) {
             refreshJumpBack()
         }
         analyzeFunction(item, focusAddress)
+        ensureListingAround(focusAddress ?: item.start)
     }
 
     fun clearFunctionSelection() {
@@ -341,9 +441,11 @@ class ViewerViewModel(app: Application) : AndroidViewModel(app) {
         replayDetailsOpen = false
         jumpHistory.clear()
         refreshJumpBack()
+        resetListing()
     }
 
     fun cancelAnalysis() {
+        ++cfgRequestId
         val handle = sessionHandle
         if (handle != 0L) engine.cancel(handle)
         analysisJob?.cancel()
@@ -367,12 +469,23 @@ class ViewerViewModel(app: Application) : AndroidViewModel(app) {
             errorMessage = str(R.string.not_arm64_cfg)
             return
         }
+        val requestId = ++cfgRequestId
         val key = cacheKey(item)
+        val applySnap = { snap: CfgSnapshot ->
+            if (requestId != cfgRequestId) {
+                false
+            } else if (selectedFunction?.start != item.start) {
+                false
+            } else {
+                snapshot = snap
+                layout = null
+                selectedAddress = focusAddress ?: selectedAddress ?: item.start
+                requestViewport(if (focusAddress != null) ViewportRequest.CenterSelection else ViewportRequest.FitAll)
+                true
+            }
+        }
         cfgCache[key]?.let { snap ->
-            snapshot = snap
-            layout = null
-            selectedAddress = focusAddress ?: selectedAddress ?: item.start
-            requestViewport(if (focusAddress != null) ViewportRequest.CenterSelection else ViewportRequest.FitAll)
+            applySnap(snap)
             return
         }
         analysisJob?.cancel()
@@ -382,28 +495,44 @@ class ViewerViewModel(app: Application) : AndroidViewModel(app) {
                 val json = withContext(Dispatchers.Default) {
                     engine.buildCfg(handle, item.start, maxBlocks, timeoutMs = 30_000)
                 }
+                if (requestId != cfgRequestId || selectedFunction?.start != item.start) {
+                    return@launch
+                }
                 val snap = parseCfgSnapshot(json)
                 if (cfgCache.size > 16) {
                     val first = cfgCache.keys.first()
                     cfgCache.remove(first)
                 }
                 cfgCache[key] = snap
-                snapshot = snap
-                layout = null
-                selectedAddress = focusAddress ?: selectedAddress ?: item.start
-                requestViewport(if (focusAddress != null) ViewportRequest.CenterSelection else ViewportRequest.FitAll)
+                if (!applySnap(snap)) {
+                    return@launch
+                }
                 if (snap.truncated) {
                     notice = str(R.string.cfg_truncated, snap.truncationReason ?: str(R.string.cfg_truncated_default), snap.blockCount)
                 }
+            } catch (t: CancellationException) {
+                throw t
             } catch (t: Throwable) {
-                fail(t)
+                if (requestId == cfgRequestId) fail(t)
             } finally {
-                busyMessage = null
+                if (requestId == cfgRequestId) busyMessage = null
             }
         }
     }
 
+    fun selectFunctionLabel(name: String, start: Long) {
+        val fn = functions.firstOrNull { it.start == start && (it.displayName == name || it.name == name) }
+            ?: functions.firstOrNull { it.start == start }
+            ?: functionContaining(start)
+        if (fn != null) {
+            selectFunction(fn, focusAddress = start, clearHistory = false)
+        } else {
+            navigateToAddress(start, recordHistory = true)
+        }
+    }
+
     fun selectAddress(address: Long, recordHistory: Boolean = true) {
+
         navigateToAddress(address, recordHistory)
     }
 
@@ -457,8 +586,13 @@ class ViewerViewModel(app: Application) : AndroidViewModel(app) {
         val currentFn = selectedFunction
         if (fn != null) {
             if (currentFn?.start == fn.start) {
+                if (selectedAddress != address) {
+                    replayReport = null
+                    replayDetailsOpen = false
+                }
                 selectedAddress = address
                 if (snapshot != null) requestViewport(ViewportRequest.CenterSelection)
+                ensureListingAround(address)
             } else {
                 selectFunction(fn, focusAddress = address, clearHistory = false)
             }
@@ -475,38 +609,35 @@ class ViewerViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun openExecutableView(va: Long) {
         val map = image?.addressMap
-        val seg = map?.executableSegmentForVa(va)
+        val seg = map?.executableSegmentForVa(va) ?: map?.segmentForVa(va)
         if (map == null || seg == null) {
             fail(str(R.string.jump_no_region))
             return
         }
-        val segEnd = seg.vaddr + seg.memSize
-        val next = functions.filter { it.start > va }.minByOrNull { it.start }?.start ?: segEnd
-        val end = minOf(va + 0x1000L, next, segEnd)
-        if (end <= va) {
-            fail(str(R.string.jump_no_region))
-            return
+        // Unowned gap/data is still a valid listing location. Do not invent a
+        // synthetic function or reuse a stale function as the CFG/replay entry.
+        selectedAddress = va
+        if (viewMode != ViewMode.Flat) {
+            viewMode = ViewMode.Flat
         }
-        val item = FunctionItem(
-            name = "",
-            start = va,
-            size = end - va,
-            source = "executable_view",
-            fromSymbol = false,
-            fromUnwind = false,
-            fromEntry = false,
-        )
         notice = str(R.string.jump_no_neighbor)
-        selectFunction(item, focusAddress = va, clearHistory = false)
+        ensureListingAround(va)
     }
 
     fun replayToSelected() {
         val handle = sessionHandle
-        val fn = selectedFunction
         val addr = selectedAddress
-        if (handle == 0L || fn == null || addr == null) {
+        if (handle == 0L || addr == null) {
             fail(str(R.string.replay_need_selection))
             return
+        }
+        val fn = functionContaining(addr) ?: selectedFunction
+        if (fn == null || !functionContains(fn, addr)) {
+            fail(str(R.string.replay_not_in_function))
+            return
+        }
+        if (fn.start != selectedFunction?.start) {
+            selectedFunction = fn
         }
         if (image?.isArm64 != true) {
             fail(str(R.string.replay_need_arm64))
@@ -522,9 +653,9 @@ class ViewerViewModel(app: Application) : AndroidViewModel(app) {
                 val report = parseReplayReport(json)
                 replayReport = report
                 replayPanelExpanded = true
-                if (!report.ok) {
-                    fail(str(R.string.replay_fail_reach))
-                }
+                // Structured reach reports (reached, not reached, infeasible,
+                // timeout, cancelled, unsupported) belong on the panel and
+                // Details page. Do not pop a modal over them.
             } catch (t: Throwable) {
                 fail(t)
             } finally {
@@ -562,6 +693,134 @@ class ViewerViewModel(app: Application) : AndroidViewModel(app) {
         refreshJumpBack()
         viewportKind = ViewportRequest.None
         cfgCache.clear()
+        resetListing()
+    }
+
+    fun functionContains(fn: FunctionItem, va: Long): Boolean {
+        if (fn.start == va) return true
+        val end = fn.start + fn.size.coerceAtLeast(1)
+        return va >= fn.start && va < end
+    }
+
+    private fun resetListing() {
+        listingEpoch += 1
+        listingJob?.cancel()
+        listingJob = null
+        listingRaw = emptyList()
+        listingRows = emptyList()
+        listingReachedStart = false
+        listingReachedEnd = false
+        listingLoadingBefore = false
+        listingLoadingAfter = false
+        listingAnchorAddress = null
+        listingViewportAnchor = null
+        listingSelectionInViewport = true
+    }
+
+    private fun requestListingAnchor(va: Long) {
+        listingAnchorAddress = va
+        listingAnchorSeq += 1
+        // Explicit jump/click just asked the list to place this address on screen.
+        // Until the listing reporter catches up, treat it as the viewport selection
+        // so a fast tab switch to CFG cannot fall back to a stale off-screen flag.
+        listingViewportAnchor = va
+        listingSelectionInViewport = true
+    }
+
+    private fun publishListing(raw: List<ListingRow>) {
+        val evicted = ListingMerger.evict(raw, LISTING_MAX_ROWS, selectedAddress)
+        listingRaw = evicted.filter { it.kind != ListingKind.FunctionLabel }
+        listingRows = ListingMerger.insertFunctionLabels(listingRaw, functions)
+    }
+
+    fun ensureListingAround(va: Long) {
+        if (sessionHandle == 0L) return
+        if (ListingMerger.covers(listingRaw, va)) {
+            requestListingAnchor(va)
+            return
+        }
+        val epoch = listingEpoch + 1
+        listingEpoch = epoch
+        listingJob?.cancel()
+        listingJob = viewModelScope.launch {
+            try {
+                val handle = sessionHandle
+                if (handle == 0L) return@launch
+                val forward = withContext(Dispatchers.Default) {
+                    parseListingWindow(engine.disasmWindow(handle, va, false, LISTING_PAGE))
+                }
+                if (epoch != listingEpoch) return@launch
+                val backward = withContext(Dispatchers.Default) {
+                    parseListingWindow(engine.disasmWindow(handle, va, true, LISTING_PAGE))
+                }
+                if (epoch != listingEpoch) return@launch
+                val merged = ListingMerger.merge(backward.items, forward.items)
+                listingReachedStart = backward.reachedStart
+                listingReachedEnd = forward.reachedEnd
+                publishListing(merged)
+                requestListingAnchor(va)
+            } catch (_: CancellationException) {
+            } catch (t: Throwable) {
+                if (listingRows.isEmpty()) fail(t)
+            }
+        }
+    }
+
+    fun loadListingBefore() {
+        if (listingLoadingBefore || listingReachedStart) return
+        val origin = listingRaw.firstOrNull()?.address ?: return
+        val epoch = listingEpoch
+        listingLoadingBefore = true
+        viewModelScope.launch {
+            try {
+                val handle = sessionHandle
+                if (handle == 0L || epoch != listingEpoch) return@launch
+                val page = withContext(Dispatchers.Default) {
+                    parseListingWindow(engine.disasmWindow(handle, origin, true, LISTING_PAGE))
+                }
+                if (epoch != listingEpoch) return@launch
+                if (page.items.isEmpty()) {
+                    listingReachedStart = true
+                    return@launch
+                }
+                listingReachedStart = page.reachedStart
+                publishListing(ListingMerger.merge(listingRaw, page.items))
+            } catch (_: CancellationException) {
+            } catch (t: Throwable) {
+                fail(t)
+            } finally {
+                if (epoch == listingEpoch) listingLoadingBefore = false
+            }
+        }
+    }
+
+    fun loadListingAfter() {
+        if (listingLoadingAfter || listingReachedEnd) return
+        val last = listingRaw.lastOrNull() ?: return
+        val origin = last.address + last.size.coerceAtLeast(1)
+        val epoch = listingEpoch
+        listingLoadingAfter = true
+        viewModelScope.launch {
+            try {
+                val handle = sessionHandle
+                if (handle == 0L || epoch != listingEpoch) return@launch
+                val page = withContext(Dispatchers.Default) {
+                    parseListingWindow(engine.disasmWindow(handle, origin, false, LISTING_PAGE))
+                }
+                if (epoch != listingEpoch) return@launch
+                if (page.items.isEmpty()) {
+                    listingReachedEnd = true
+                    return@launch
+                }
+                listingReachedEnd = page.reachedEnd
+                publishListing(ListingMerger.merge(listingRaw, page.items))
+            } catch (_: CancellationException) {
+            } catch (t: Throwable) {
+                fail(t)
+            } finally {
+                if (epoch == listingEpoch) listingLoadingAfter = false
+            }
+        }
     }
 
     override fun onCleared() {
